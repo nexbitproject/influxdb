@@ -68,6 +68,18 @@ func (e errCompactionAborted) Error() string {
 	return "compaction aborted"
 }
 
+type errBlockRead struct {
+	file string
+	err  error
+}
+
+func (e errBlockRead) Error() string {
+	if e.err != nil {
+		return fmt.Sprintf("block read error on %s: %s", e.file, e.err)
+	}
+	return fmt.Sprintf("block read error on %s", e.file)
+}
+
 // CompactionGroup represents a list of files eligible to be compacted together.
 type CompactionGroup []string
 
@@ -932,7 +944,7 @@ func (c *Compactor) compact(fast bool, tsmFiles []string) ([]string, error) {
 		return nil, nil
 	}
 
-	tsm, err := NewTSMBatchKeyIterator(size, fast, intC, trs...)
+	tsm, err := NewTSMBatchKeyIterator(size, fast, intC, tsmFiles, trs...)
 	if err != nil {
 		return nil, err
 	}
@@ -1048,6 +1060,14 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 			// planner keeps track of which files are assigned to compaction plans now.
 			return nil, err
 		} else if err != nil {
+			// We hit a bad TSM file - rename so the next compaction can proceed.
+			if _, ok := err.(errBlockRead); ok {
+				path := err.(errBlockRead).file
+				//TODO: logging
+				if e := os.Rename(path, path+"."+BadTSMFileExtension); e != nil {
+					return nil, err
+				}
+			}
 			// Remove any tmp files we already completed
 			for _, f := range files {
 				if err := os.RemoveAll(f); err != nil {
@@ -1593,6 +1613,10 @@ type tsmBatchKeyIterator struct {
 	key []byte
 	typ byte
 
+	// tsmFiles are the string names of the files for use in tracking errors, ordered the same
+	// as iterators and buf
+	tsmFiles []string
+
 	iterators []*BlockIterator
 	blocks    blocks
 
@@ -1613,7 +1637,7 @@ type tsmBatchKeyIterator struct {
 
 // NewTSMBatchKeyIterator returns a new TSM key iterator from readers.
 // size indicates the maximum number of values to encode in a single block.
-func NewTSMBatchKeyIterator(size int, fast bool, interrupt chan struct{}, readers ...*TSMReader) (KeyIterator, error) {
+func NewTSMBatchKeyIterator(size int, fast bool, interrupt chan struct{}, tsmFiles []string, readers ...*TSMReader) (KeyIterator, error) {
 	var iter []*BlockIterator
 	for _, r := range readers {
 		iter = append(iter, r.BlockIterator())
@@ -1626,6 +1650,7 @@ func NewTSMBatchKeyIterator(size int, fast bool, interrupt chan struct{}, reader
 		size:                 size,
 		iterators:            iter,
 		fast:                 fast,
+		tsmFiles:             tsmFiles,
 		buf:                  make([]blocks, len(iter)),
 		mergedFloatValues:    &tsdb.FloatArray{},
 		mergedIntegerValues:  &tsdb.IntegerArray{},
@@ -1689,7 +1714,7 @@ RETRY:
 		if iter.Next() {
 			key, minTime, maxTime, typ, _, b, err := iter.Read()
 			if err != nil {
-				k.err = err
+				k.err = errBlockRead{k.tsmFiles[i], err}
 			}
 
 			// This block may have ranges of time removed from it that would
@@ -1722,7 +1747,7 @@ RETRY:
 				iter.Next()
 				key, minTime, maxTime, typ, _, b, err := iter.Read()
 				if err != nil {
-					k.err = err
+					k.err = errBlockRead{k.tsmFiles[i], err}
 				}
 
 				tombstones := iter.r.TombstoneRange(key)
@@ -1752,7 +1777,7 @@ RETRY:
 		}
 
 		if iter.Err() != nil {
-			k.err = iter.Err()
+			k.err = errBlockRead{k.tsmFiles[i], iter.Err()}
 		}
 	}
 
