@@ -35,7 +35,7 @@ func init() {
 		authCmd(),
 		bucketCmd,
 		deleteCmd,
-		organizationCmd,
+		organizationCmd(),
 		pingCmd,
 		pkgCmd(),
 		queryCmd,
