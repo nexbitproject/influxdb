@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -667,12 +666,15 @@ func (e *Engine) deleteBucketRangeLocked(ctx context.Context, orgID, bucketID pl
 	return e.engine.DeletePrefixRange(ctx, name, min, max, pred)
 }
 
+// CreateBackup creates a "snapshot" of all TSM data in the Engine.
+//   1) Snapshot the cache to ensure the backup includes all data written before now.
+//   2) Create hard links to all TSM files, in a new directory within the engine root directory.
+//   3) Return a unique backup ID (invalid after the process terminates) and list of files.
 func (e *Engine) CreateBackup(ctx context.Context) (int, []string, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	span.LogKV("path", e.path)
 
-	err := e.engine.WriteSnapshot(ctx, tsm1.CacheStatusBackup)
-	if err != nil {
+	if err := e.engine.WriteSnapshot(ctx, tsm1.CacheStatusBackup); err != nil {
 		return 0, nil, err
 	}
 
@@ -693,6 +695,8 @@ func (e *Engine) CreateBackup(ctx context.Context) (int, []string, error) {
 	return id, filenames, nil
 }
 
+// FetchBackupFile writes a given backup file to the provided writer.
+// After a successful write, the internal copy is removed.
 func (e *Engine) FetchBackupFile(ctx context.Context, backupID int, backupFile string, w io.Writer) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	span.LogKV("path", e.path)
@@ -703,10 +707,8 @@ func (e *Engine) FetchBackupFile(ctx context.Context, backupID int, backupFile s
 			return errors.Errorf("backup %d not found", backupID)
 		}
 		return errors.WithMessagef(err, "failed to locate backup %d", backupID)
-	} else {
-		if !fi.IsDir() {
-			return errors.Errorf("error in filesystem path of backup %d", backupID)
-		}
+	} else if !fi.IsDir() {
+		return errors.Errorf("error in filesystem path of backup %d", backupID)
 	}
 
 	backupFileFullPath := filepath.Join(backupPath, backupFile)
@@ -725,14 +727,15 @@ func (e *Engine) FetchBackupFile(ctx context.Context, backupID int, backupFile s
 		return errors.WithMessagef(err, "failed to copy backup file %d/%s to writer", backupID, backupFile)
 	}
 
-	err = syscall.Unlink(backupFileFullPath)
-	if err != nil {
-		e.logger.Info("failed to unlink backup file after fetch", zap.Error(err), zap.Int("backup_id", backupID), zap.String("backup_file", backupFile))
+	if err = os.Remove(backupFileFullPath); err != nil {
+		e.logger.Info("Failed to remove backup file after fetch", zap.Error(err), zap.Int("backup_id", backupID), zap.String("backup_file", backupFile))
 	}
 
 	return nil
 }
 
+// InternalBackupPath provides the internal, full path directory name of the backup.
+// This should not be exposed via API.
 func (e *Engine) InternalBackupPath(backupID int) string {
 	return e.engine.FileStore.InternalBackupPath(backupID)
 }

@@ -3,20 +3,26 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/multierr"
-	"os"
-	"path/filepath"
 )
 
 var backupCmd = &cobra.Command{
 	Use:   "backup",
 	Short: "Backup the data in InfluxDB",
-	Long:  `Backs up data and meta data for the InfluxDB instance. OSS only.`,
-	RunE:  backupF,
+	Long: fmt.Sprintf(
+		`Backs up data and meta data for the running InfluxDB instance.
+Downloaded files are written to the directory indicated by --path.
+Data file have extension .tsm; meta data is written to %s in the same directory.`,
+		bolt.DefaultFilename),
+	RunE: backupF,
 }
 
 var backupFlags struct {

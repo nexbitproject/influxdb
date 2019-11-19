@@ -9,10 +9,9 @@ import (
 	"time"
 
 	bolt "github.com/coreos/bbolt"
-	"go.uber.org/zap"
-
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/kv"
+	"go.uber.org/zap"
 )
 
 // KVStore is a kv.Store backed by boltdb.

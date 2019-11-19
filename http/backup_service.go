@@ -7,10 +7,12 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path"
+	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/multierr"
@@ -51,10 +53,12 @@ const (
 	backupIDParamName   = "backup_id"
 	backupFileParamName = "backup_file"
 	backupFilePath      = backupPath + "/:" + backupIDParamName + "/file/:" + backupFileParamName
+
+	httpClientTimeout = time.Hour
 )
 
 func composeBackupFilePath(backupID int, backupFile string) string {
-	return path.Join(backupPath, fmt.Sprint(backupID), "file", fmt.Sprint(backupFile))
+	return filepath.Join(backupPath, fmt.Sprint(backupID), "file", backupFile)
 }
 
 // NewBackupHandler creates a new handler at /api/v2/backup to receive backup requests.
@@ -83,7 +87,6 @@ func (h *BackupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	defer span.Finish()
 
 	ctx := r.Context()
-	defer r.Body.Close()
 
 	id, files, err := h.BackupService.CreateBackup(ctx)
 	if err != nil {
@@ -92,7 +95,7 @@ func (h *BackupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	internalBackupPath := h.BackupService.InternalBackupPath(id)
-	metaFilename := fmt.Sprintf("%s/influxd.bolt", internalBackupPath)
+	metaFilename := filepath.Join(internalBackupPath, bolt.DefaultFilename)
 	metaFile, err := os.OpenFile(metaFilename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0660)
 	if err != nil {
 		err = multierr.Append(err, os.RemoveAll(internalBackupPath))
@@ -100,20 +103,18 @@ func (h *BackupHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.KVBackupService.Backup(ctx, metaFile)
-	if err != nil {
+	if err = h.KVBackupService.Backup(ctx, metaFile); err != nil {
 		err = multierr.Append(err, os.RemoveAll(internalBackupPath))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	files = append(files, "influxd.bolt")
+	files = append(files, bolt.DefaultFilename)
 
 	b := backup{
 		ID:    id,
 		Files: files,
 	}
-	err = json.NewEncoder(w).Encode(&b)
-	if err != nil {
+	if err = json.NewEncoder(w).Encode(&b); err != nil {
 		err = multierr.Append(err, os.RemoveAll(internalBackupPath))
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -125,7 +126,6 @@ func (h *BackupHandler) handleFetchFile(w http.ResponseWriter, r *http.Request) 
 	defer span.Finish()
 
 	ctx := r.Context()
-	defer r.Body.Close()
 
 	params := httprouter.ParamsFromContext(ctx)
 	backupID, err := strconv.Atoi(params.ByName("backup_id"))
@@ -135,13 +135,13 @@ func (h *BackupHandler) handleFetchFile(w http.ResponseWriter, r *http.Request) 
 	}
 	backupFile := params.ByName("backup_file")
 
-	err = h.BackupService.FetchBackupFile(ctx, backupID, backupFile, w)
-	if err != nil {
+	if err = h.BackupService.FetchBackupFile(ctx, backupID, backupFile, w); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 }
 
+// BackupService is the client implementation of influxdb.BackupService.
 type BackupService struct {
 	Addr               string
 	Token              string
@@ -165,6 +165,7 @@ func (s *BackupService) CreateBackup(ctx context.Context) (int, []string, error)
 	req = req.WithContext(ctx)
 
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
+	hc.Timeout = httpClientTimeout
 	resp, err := hc.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -176,8 +177,7 @@ func (s *BackupService) CreateBackup(ctx context.Context) (int, []string, error)
 	}
 
 	var b backup
-	err = json.NewDecoder(resp.Body).Decode(&b)
-	if err != nil {
+	if err = json.NewDecoder(resp.Body).Decode(&b); err != nil {
 		return 0, nil, err
 	}
 
@@ -200,6 +200,7 @@ func (s *BackupService) FetchBackupFile(ctx context.Context, backupID int, backu
 	SetToken(s.Token, req)
 
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
+	hc.Timeout = httpClientTimeout
 	resp, err := hc.Do(req)
 	if err != nil {
 		return err

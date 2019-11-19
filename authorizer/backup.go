@@ -4,9 +4,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/influxdata/influxdb/kit/tracing"
-
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 var _ influxdb.BackupService = (*BackupService)(nil)

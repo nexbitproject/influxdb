@@ -146,7 +146,7 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 		{
 			DestP:   &l.boltPath,
 			Flag:    "bolt-path",
-			Default: filepath.Join(dir, "influxd.bolt"),
+			Default: filepath.Join(dir, bolt.DefaultFilename),
 			Desc:    "path to boltdb database",
 		},
 		{
