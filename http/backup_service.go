@@ -198,6 +198,7 @@ func (s *BackupService) FetchBackupFile(ctx context.Context, backupID int, backu
 		return err
 	}
 	SetToken(s.Token, req)
+	req = req.WithContext(ctx)
 
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	hc.Timeout = httpClientTimeout

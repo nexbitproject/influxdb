@@ -1235,7 +1235,7 @@ func (f *FileStore) CreateSnapshot(ctx context.Context) (backupID int, backupDir
 
 	// create the tmp directory and add the hard links. there is no longer any shared
 	// mutable state.
-	err := os.Mkdir(backupDirFullPath, 0777)
+	err = os.Mkdir(backupDirFullPath, 0777)
 	if err != nil {
 		return 0, "", err
 	}

@@ -705,7 +705,7 @@ func (e *Engine) CreateBackup(ctx context.Context) (int, []string, error) {
 // FetchBackupFile writes a given backup file to the provided writer.
 // After a successful write, the internal copy is removed.
 func (e *Engine) FetchBackupFile(ctx context.Context, backupID int, backupFile string, w io.Writer) error {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	e.mu.RLock()
