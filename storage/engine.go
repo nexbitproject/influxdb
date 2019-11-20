@@ -26,6 +26,7 @@ import (
 	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
 
@@ -672,7 +673,13 @@ func (e *Engine) deleteBucketRangeLocked(ctx context.Context, orgID, bucketID pl
 //   3) Return a unique backup ID (invalid after the process terminates) and list of files.
 func (e *Engine) CreateBackup(ctx context.Context) (int, []string, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
-	span.LogKV("path", e.path)
+	defer span.Finish()
+
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closing == nil {
+		return 0, nil, ErrEngineClosed
+	}
 
 	if err := e.engine.WriteSnapshot(ctx, tsm1.CacheStatusBackup); err != nil {
 		return 0, nil, err
@@ -699,7 +706,13 @@ func (e *Engine) CreateBackup(ctx context.Context) (int, []string, error) {
 // After a successful write, the internal copy is removed.
 func (e *Engine) FetchBackupFile(ctx context.Context, backupID int, backupFile string, w io.Writer) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
-	span.LogKV("path", e.path)
+	defer span.Finish()
+
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closing == nil {
+		return ErrEngineClosed
+	}
 
 	backupPath := e.engine.FileStore.InternalBackupPath(backupID)
 	if fi, err := os.Stat(backupPath); err != nil {
@@ -721,10 +734,13 @@ func (e *Engine) FetchBackupFile(ctx context.Context, backupID int, backupFile s
 	}
 	defer file.Close()
 
-	buf := make([]byte, 1024*1024)
-	_, err = io.CopyBuffer(w, file, buf)
-	if err != nil {
+	if _, err = io.Copy(w, file); err != nil {
+		err = multierr.Append(err, file.Close())
 		return errors.WithMessagef(err, "failed to copy backup file %d/%s to writer", backupID, backupFile)
+	}
+
+	if err = file.Close(); err != nil {
+		return errors.WithMessagef(err, "failed to close backup file %d/%s", backupID, backupFile)
 	}
 
 	if err = os.Remove(backupFileFullPath); err != nil {

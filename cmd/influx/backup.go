@@ -20,6 +20,7 @@ var backupCmd = &cobra.Command{
 	Long: fmt.Sprintf(
 		`Backs up data and meta data for the running InfluxDB instance.
 Downloaded files are written to the directory indicated by --path.
+The target directory, and any parent directories, are created automatically.
 Data file have extension .tsm; meta data is written to %s in the same directory.`,
 		bolt.DefaultFilename),
 	RunE: backupF,
@@ -58,7 +59,7 @@ func backupF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("must specify path")
 	}
 
-	err := os.Mkdir(backupFlags.Path, 0770)
+	err := os.MkdirAll(backupFlags.Path, 0770)
 	if err != nil && !os.IsExist(err) {
 		return err
 	}

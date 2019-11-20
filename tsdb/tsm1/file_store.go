@@ -1208,7 +1208,7 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 
 // CreateSnapshot creates hardlinks for all tsm and tombstone files
 // in the path provided.
-func (f *FileStore) CreateSnapshot(ctx context.Context) (int, string, error) {
+func (f *FileStore) CreateSnapshot(ctx context.Context) (backupID int, backupDirFullPath string, err error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1228,31 +1228,31 @@ func (f *FileStore) CreateSnapshot(ctx context.Context) (int, string, error) {
 	// increment and keep track of the current temp dir for when we drop the lock.
 	// this ensures we are the only writer to the directory.
 	f.currentTempDirID += 1
-	backupID := f.currentTempDirID
+	backupID = f.currentTempDirID
 	f.mu.Unlock()
 
-	path := f.InternalBackupPath(backupID)
+	backupDirFullPath = f.InternalBackupPath(backupID)
 
 	// create the tmp directory and add the hard links. there is no longer any shared
 	// mutable state.
-	err := os.Mkdir(path, 0777)
+	err := os.Mkdir(backupDirFullPath, 0777)
 	if err != nil {
 		return 0, "", err
 	}
 	for _, tsmf := range files {
-		newpath := filepath.Join(path, filepath.Base(tsmf.Path()))
+		newpath := filepath.Join(backupDirFullPath, filepath.Base(tsmf.Path()))
 		if err := os.Link(tsmf.Path(), newpath); err != nil {
 			return 0, "", fmt.Errorf("error creating tsm hard link: %q", err)
 		}
 		for _, tf := range tsmf.TombstoneFiles() {
-			newpath := filepath.Join(path, filepath.Base(tf.Path))
+			newpath := filepath.Join(backupDirFullPath, filepath.Base(tf.Path))
 			if err := os.Link(tf.Path, newpath); err != nil {
 				return 0, "", fmt.Errorf("error creating tombstone hard link: %q", err)
 			}
 		}
 	}
 
-	return backupID, path, nil
+	return backupID, backupDirFullPath, nil
 }
 
 func (f *FileStore) InternalBackupPath(backupID int) string {

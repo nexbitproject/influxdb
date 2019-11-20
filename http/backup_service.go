@@ -211,7 +211,7 @@ func (s *BackupService) FetchBackupFile(ctx context.Context, backupID int, backu
 		return err
 	}
 
-	_, err = io.CopyBuffer(w, resp.Body, make([]byte, 1024*1024))
+	_, err = io.Copy(w, resp.Body)
 	if err != nil {
 		return err
 	}
