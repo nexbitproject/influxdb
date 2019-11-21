@@ -78,6 +78,7 @@ import RenameVariableOverlay from 'src/variables/components/RenameVariableOverla
 import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverlay'
 import TaskImportFromTemplateOverlay from './tasks/components/TaskImportFromTemplateOverlay'
 import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateViewOverlay'
+import CheckHistory from 'src/alerting/components/CheckHistory'
 import AlertingIndex from 'src/alerting/components/AlertingIndex'
 import AlertHistoryIndex from 'src/alerting/components/AlertHistoryIndex'
 import BucketsDeleteDataOverlay from 'src/shared/components/DeleteDataOverlay'
@@ -445,6 +446,10 @@ class Root extends PureComponent {
                           <Route
                             path="alert-history"
                             component={AlertHistoryIndex}
+                          />
+                          <Route
+                              path="alerting/checks/:checkID"
+                              component={CheckHistory}
                           />
                         </Route>
                       </Route>
