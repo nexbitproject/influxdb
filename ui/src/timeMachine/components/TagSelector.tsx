@@ -80,8 +80,6 @@ type Props = StateProps & DispatchProps & OwnProps
 class TagSelector extends PureComponent<Props> {
   private debouncer = new DefaultDebouncer()
 
-  // bucky: this will currently always be 'Filter'
-  // updates to this are imminent
   private renderAggregateFunctionType(
     aggregateFunctionType: BuilderAggregateFunctionType
   ) {
@@ -99,6 +97,7 @@ class TagSelector extends PureComponent<Props> {
         <BuilderCard.Header
           title={this.renderAggregateFunctionType(aggregateFunctionType)}
           onDelete={index !== 0 && this.handleRemoveTagSelector}
+          onSelect={this.handleAggregateFunctionSelect}
         />
         {this.body}
       </BuilderCard>
@@ -264,6 +263,17 @@ class TagSelector extends PureComponent<Props> {
     const {index, onSearchValues} = this.props
 
     onSearchValues(index)
+  }
+
+  private handleAggregateFunctionSelect = (option: BuilderAggregateFunctionType) => {
+    const {
+      aggregateFunctionType,
+      index,
+      onSetBuilderAggregateFunctionType,
+    } = this.props
+
+    console.log(option)
+    onSetBuilderAggregateFunctionType(option, index)
   }
 }
 

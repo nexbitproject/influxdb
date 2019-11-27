@@ -666,6 +666,7 @@ export const timeMachineReducer = (
           draftQuery.builderConfig &&
           draftQuery.builderConfig.tags[index]
         ) {
+          console.log('fooooooo', builderAggregateFunctionType)
           draftQuery.builderConfig.tags[
             index
           ].aggregateFunctionType = builderAggregateFunctionType
@@ -780,7 +781,7 @@ export const timeMachineReducer = (
 
         draftQuery.builderConfig.tags[index].values = values
 
-        buildActiveQuery(draftState)
+        buildActiveQuery(draftState, index)
       })
     }
 
@@ -1110,11 +1111,14 @@ const initialQueryResultsState = (): QueryResultsState => ({
   statuses: null,
 })
 
-const buildActiveQuery = (draftState: TimeMachineState) => {
+const buildActiveQuery = (
+  draftState: TimeMachineState,
+  currentIndex?: number
+) => {
   const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
 
   if (isConfigValid(draftQuery.builderConfig)) {
-    draftQuery.text = buildQuery(draftQuery.builderConfig)
+    draftQuery.text = buildQuery(draftQuery.builderConfig, currentIndex)
   } else {
     draftQuery.text = ''
   }

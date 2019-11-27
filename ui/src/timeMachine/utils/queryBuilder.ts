@@ -81,15 +81,20 @@ export const isCheckSaveable = (
   )
 }
 
-export function buildQuery(builderConfig: BuilderConfig): string {
+export function buildQuery(
+  builderConfig: BuilderConfig,
+  currentIndex?: number
+): string {
   const {functions} = builderConfig
 
   let query: string
 
   if (functions.length) {
-    query = functions.map(f => buildQueryHelper(builderConfig, f)).join('\n\n')
+    query = functions
+      .map(f => buildQueryHelper(builderConfig, f, currentIndex))
+      .join('\n\n')
   } else {
-    query = buildQueryHelper(builderConfig)
+    query = buildQueryHelper(builderConfig, null, currentIndex)
   }
 
   return query
@@ -97,15 +102,22 @@ export function buildQuery(builderConfig: BuilderConfig): string {
 
 function buildQueryHelper(
   builderConfig: BuilderConfig,
-  fn?: BuilderConfig['functions'][0]
+  fn?: BuilderConfig['functions'][0],
+  currentIndex?: number
 ): string {
   const [bucket] = builderConfig.buckets
   const tagFilterCall = formatTagFilterCall(builderConfig.tags)
+  const shouldAggregateGroup: boolean =
+    currentIndex &&
+    builderConfig.tags[currentIndex].aggregateFunctionType === 'group'
+  const tagGroupCall = shouldAggregateGroup
+    ? formatTagGroupCall(builderConfig.tags)
+    : ''
   const {aggregateWindow} = builderConfig
   const fnCall = fn ? formatFunctionCall(fn, aggregateWindow.period) : ''
 
   const query = `from(bucket: "${bucket}")
-  |> range(start: ${OPTION_NAME}.${TIME_RANGE_START}, stop: ${OPTION_NAME}.${TIME_RANGE_STOP})${tagFilterCall}${fnCall}`
+  |> range(start: ${OPTION_NAME}.${TIME_RANGE_START}, stop: ${OPTION_NAME}.${TIME_RANGE_STOP})${tagFilterCall}${tagGroupCall}${fnCall}`
 
   return query
 }
@@ -148,6 +160,23 @@ function formatTagFilterCall(tagsSelections: BuilderConfig['tags']) {
     .join('\n  ')
 
   return `\n  ${calls}`
+}
+
+function formatTagGroupCall(tagsSelections: BuilderConfig['tags']) {
+  const tags = Array.from(tagsSelections)
+  tags.shift()
+
+  if (!tags.length) {
+    return '\n  |> group()'
+  }
+
+  const columns = tags
+    .filter(({key, values}) => key && key === '_field' && values.length)
+    .map(({values}) => {
+      return [...values.map(value => `"${value}"`)] // wrap the value in double quotes
+    })
+
+  return `\n  |> group(columns: [${columns.join(', ')}])` // join with a comma (e.g. "foo","bar","baz")
 }
 
 export enum ConfirmationState {

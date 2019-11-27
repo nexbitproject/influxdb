@@ -1,12 +1,17 @@
 // Libraries
 import React, {PureComponent} from 'react'
 
+import {SelectDropdown} from '@influxdata/clockface'
+
 interface Props {
   title: string
   testID: string
+  onSelect?: () => void
   onDelete?: () => void
   onDragStart?: () => void
 }
+
+const emptyFunction = () => {}
 
 export default class BuilderCardHeader extends PureComponent<Props> {
   public static defaultProps = {
@@ -14,11 +19,20 @@ export default class BuilderCardHeader extends PureComponent<Props> {
   }
 
   public render() {
-    const {testID, children} = this.props
+    const {testID, children, onSelect} = this.props
 
     return (
-      <div className="builder-card--header" data-testid={testID}>
-        {this.title}
+      <div
+        className="builder-card--header"
+        data-testid={testID}
+      >
+      <SelectDropdown
+        options={['filter', 'group']}
+        selectedOption={this.title}
+        testID="select-option-dropdown"
+        onSelect={onSelect ? onSelect : emptyFunction}
+      />
+
         {children}
         {this.deleteButton}
       </div>
