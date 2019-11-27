@@ -338,7 +338,7 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 		if err != nil {
 			return nil, err
 		}
-		newResource = bucketToResource(*bkt, r.Name)
+		newResource = BucketToResource(*bkt, r.Name)
 	case r.Kind.is(KindDashboard):
 		dash, err := s.dashSVC.FindDashboardByID(ctx, r.ID)
 		if err != nil {
@@ -352,19 +352,19 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 			}
 			cellViews = append(cellViews, cellView{c: *cell, v: *v})
 		}
-		newResource = dashboardToResource(*dash, cellViews, r.Name)
+		newResource = DashboardToResource(*dash, cellViews, r.Name)
 	case r.Kind.is(KindLabel):
 		l, err := s.labelSVC.FindLabelByID(ctx, r.ID)
 		if err != nil {
 			return nil, err
 		}
-		newResource = labelToResource(*l, r.Name)
+		newResource = LabelToResource(*l, r.Name)
 	case r.Kind.is(KindVariable):
 		v, err := s.varSVC.FindVariableByID(ctx, r.ID)
 		if err != nil {
 			return nil, err
 		}
-		newResource = variableToResource(*v, r.Name)
+		newResource = VariableToResource(*v, r.Name)
 	default:
 		return nil, errors.New("unsupported kind provided: " + string(r.Kind))
 	}
@@ -428,7 +428,7 @@ func (s *Service) resourceCloneAssociationsGen() cloneAssociationsFn {
 				continue
 			}
 			m[k] = true
-			ass.newLableResources = append(ass.newLableResources, labelToResource(*l, ""))
+			ass.newLableResources = append(ass.newLableResources, LabelToResource(*l, ""))
 		}
 		return ass, nil
 	}

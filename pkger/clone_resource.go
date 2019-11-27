@@ -51,7 +51,7 @@ func uniqResourcesToClone(resources []ResourceToClone) []ResourceToClone {
 	return out
 }
 
-func bucketToResource(bkt influxdb.Bucket, name string) Resource {
+func BucketToResource(bkt influxdb.Bucket, name string) Resource {
 	if name == "" {
 		name = bkt.Name
 	}
@@ -66,6 +66,13 @@ func bucketToResource(bkt influxdb.Bucket, name string) Resource {
 		r[fieldBucketRetentionRules] = retentionRules{newRetentionRule(bkt.RetentionPeriod)}
 	}
 	return r
+}
+
+func ConvertToCellView(c influxdb.Cell, v influxdb.View) cellView {
+	return cellView{
+		c: c,
+		v: v,
+	}
 }
 
 type cellView struct {
@@ -268,7 +275,7 @@ func convertQueries(iQueries []influxdb.DashboardQuery) queries {
 	return out
 }
 
-func dashboardToResource(dash influxdb.Dashboard, cellViews []cellView, name string) Resource {
+func DashboardToResource(dash influxdb.Dashboard, cellViews []cellView, name string) Resource {
 	if name == "" {
 		name = dash.Name
 	}
@@ -301,7 +308,7 @@ func dashboardToResource(dash influxdb.Dashboard, cellViews []cellView, name str
 	}
 }
 
-func labelToResource(l influxdb.Label, name string) Resource {
+func LabelToResource(l influxdb.Label, name string) Resource {
 	if name == "" {
 		name = l.Name
 	}
@@ -318,7 +325,7 @@ func labelToResource(l influxdb.Label, name string) Resource {
 	return r
 }
 
-func variableToResource(v influxdb.Variable, name string) Resource {
+func VariableToResource(v influxdb.Variable, name string) Resource {
 	if name == "" {
 		name = v.Name
 	}
