@@ -136,11 +136,6 @@ export const source: Source = {
   links: sourceLinks,
 }
 
-export const timeRange = {
-  lower: 'now() - 15m',
-  upper: null,
-}
-
 export const query = {
   id: '0',
   database: 'db1',
