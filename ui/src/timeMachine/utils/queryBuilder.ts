@@ -139,7 +139,15 @@ export function formatFunctionCall(
 }
 
 const formatTagFunctionCall = function formatTagFunctionCall(tag: BuilderTagsType) {
+  if (!tag.key) {
+    return ''
+  }
+
   if (tag.aggregateFunctionType === 'filter') {
+    if (!tag.values.length) {
+      return ''
+    }
+
     const fnBody = tag.values.map(value => `r.${tag.key} == "${value}"`).join(' or ')
     return `\n  |> filter(fn: (r) => ${fnBody})`
   }
