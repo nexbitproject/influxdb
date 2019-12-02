@@ -107,12 +107,12 @@ function buildQueryHelper(
 
   const tags = Array.from(builderConfig.tags)
 
+  // todo: (bucky) - check to see if we can combine filter calls
+  // https://github.com/influxdata/influxdb/issues/16076
   let tagsFunctionCalls = ''
   tags.forEach(tag => {
-    tagsFunctionCalls += formatTagFunctionCall(tag)
+    tagsFunctionCalls += convertTagsToFluxFunctionString(tag)
   })
-
-  console.log('query builder', tagsFunctionCalls)
 
   const {aggregateWindow} = builderConfig
   const fnCall = fn ? formatFunctionCall(fn, aggregateWindow.period) : ''
@@ -138,7 +138,7 @@ export function formatFunctionCall(
   return `\n  ${fnSpec.flux(formattedPeriod)}\n  |> yield(name: "${fn.name}")`
 }
 
-const formatTagFunctionCall = function formatTagFunctionCall(tag: BuilderTagsType) {
+const convertTagsToFluxFunctionString = function convertTagsToFluxFunctionString(tag: BuilderTagsType) {
   if (!tag.key) {
     return ''
   }
@@ -173,48 +173,6 @@ const formatPeriod = (period: string): string => {
   }
 
   return period
-}
-
-function formatTagFilterCall(tagsSelections: BuilderConfig['tags']) {
-  if (!tagsSelections.length) {
-    return ''
-  }
-
-  const calls = tagsSelections
-    .filter(({key, values}) => key && values.length)
-    .map(({key, values}) => {
-      const fnBody = values.map(value => `r.${key} == "${value}"`).join(' or ')
-
-      return `|> filter(fn: (r) => ${fnBody})`
-    })
-    .join('\n  ')
-
-  return `\n  ${calls}`
-}
-
-function formatTagGroupCall(tagsSelections: BuilderConfig['tags'], currentIndex?: number) {
-  if (!tagsSelections.length) {
-    return ''
-  }
-  const tags = Array.from(tagsSelections)
-  // tags.shift()
-  // tags.forEach(tag => console.log('tag', {...tag}))
-
-  // const shouldAggregateGroup: boolean =
-  //   currentIndex &&
-  //   builderConfig.tags[currentIndex].aggregateFunctionType === 'group'
-
-  // if (!tags.length) {
-  //   return '\n  |> group()'
-  // }
-
-  const columns = tags
-    .filter(({key, values}) => key && key === '_field' && values.length)
-    .map(({values}) => {
-      return [...values.map(value => `"${value}"`)] // wrap the value in double quotes
-    })
-
-  return `\n  |> group(columns: [${columns.join(', ')}])` // join with a comma (e.g. "foo","bar","baz")
 }
 
 export enum ConfirmationState {
