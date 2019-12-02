@@ -94,8 +94,9 @@ class TagSelector extends PureComponent<Props> {
 
     return (
       <BuilderCard>
-        <BuilderCard.Header
-          title={this.renderAggregateFunctionType(aggregateFunctionType)}
+        <BuilderCard.DropdownHeader
+          options={['filter', 'group']}
+          selectedOption={this.renderAggregateFunctionType(aggregateFunctionType)}
           onDelete={index !== 0 && this.handleRemoveTagSelector}
           onSelect={this.handleAggregateFunctionSelect}
         />
