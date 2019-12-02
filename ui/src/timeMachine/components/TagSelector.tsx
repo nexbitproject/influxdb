@@ -265,14 +265,10 @@ class TagSelector extends PureComponent<Props> {
     onSearchValues(index)
   }
 
-  private handleAggregateFunctionSelect = (option: BuilderAggregateFunctionType) => {
-    const {
-      aggregateFunctionType,
-      index,
-      onSetBuilderAggregateFunctionType,
-    } = this.props
-
-    console.log(option)
+  private handleAggregateFunctionSelect = (
+    option: BuilderAggregateFunctionType
+  ) => {
+    const {index, onSetBuilderAggregateFunctionType} = this.props
     onSetBuilderAggregateFunctionType(option, index)
   }
 }
@@ -295,11 +291,28 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   } = tags[ownProps.index]
 
   let emptyText: string
-
-  if (ownProps.index === 0 || !tags[ownProps.index - 1].key) {
+  const previousTagSelector = tags[ownProps.index - 1]
+  if (
+    ownProps.index === 0 ||
+    !previousTagSelector ||
+    !previousTagSelector.key
+  ) {
     emptyText = ''
   } else {
     emptyText = `Select a ${tags[ownProps.index - 1].key} value first`
+
+    // if we're grouping, we want to be able to group on the previously filtered tags
+    // so add them to the keys we can select
+    if (aggregateFunctionType === 'group') {
+      if (keys[0] !== previousTagSelector.key) {
+        keys.unshift(previousTagSelector.key)
+      }
+      // if we're not grouping, and we added some keys already, get rid of them
+    } else {
+      if (keys[0] === previousTagSelector.key) {
+        keys.shift()
+      }
+    }
   }
 
   const isInCheckOverlay = getIsInCheckOverlay(state)

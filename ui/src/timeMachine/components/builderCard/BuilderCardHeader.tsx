@@ -2,11 +2,12 @@
 import React, {PureComponent} from 'react'
 
 import {SelectDropdown} from '@influxdata/clockface'
+import {BuilderAggregateFunctionType} from 'src/client'
 
 interface Props {
   title: string
   testID: string
-  onSelect?: () => void
+  onSelect?: (option: BuilderAggregateFunctionType) => void
   onDelete?: () => void
   onDragStart?: () => void
 }
@@ -19,7 +20,7 @@ export default class BuilderCardHeader extends PureComponent<Props> {
   }
 
   public render() {
-    const {testID, children, onSelect} = this.props
+    const {children, onSelect, testID, title} = this.props
 
     return (
       <div
@@ -28,7 +29,7 @@ export default class BuilderCardHeader extends PureComponent<Props> {
       >
       <SelectDropdown
         options={['filter', 'group']}
-        selectedOption={this.title}
+        selectedOption={title}
         testID="select-option-dropdown"
         onSelect={onSelect ? onSelect : emptyFunction}
       />
