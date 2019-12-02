@@ -661,12 +661,12 @@ export const timeMachineReducer = (
         const {index, builderAggregateFunctionType} = action.payload
         const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
 
+        buildActiveQuery(draftState)
         if (
           draftQuery &&
           draftQuery.builderConfig &&
           draftQuery.builderConfig.tags[index]
         ) {
-          console.log('fooooooo', builderAggregateFunctionType)
           draftQuery.builderConfig.tags[
             index
           ].aggregateFunctionType = builderAggregateFunctionType
@@ -752,6 +752,8 @@ export const timeMachineReducer = (
 
         draftState.queryBuilder.tags[index].values = values
         draftState.queryBuilder.tags[index].valuesStatus = RemoteDataState.Done
+
+        buildActiveQuery(draftState)
       })
     }
 
@@ -781,7 +783,7 @@ export const timeMachineReducer = (
 
         draftQuery.builderConfig.tags[index].values = values
 
-        buildActiveQuery(draftState, index)
+        buildActiveQuery(draftState)
       })
     }
 
@@ -820,10 +822,13 @@ export const timeMachineReducer = (
         const {index} = action.payload
         const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
 
-        const selectedValues = draftQuery.builderConfig.tags[index].values
+        let selectedValues = []
+        if (draftQuery) {
+          selectedValues = draftQuery.builderConfig.tags[index].values
 
-        draftQuery.builderConfig.tags.splice(index, 1)
-        draftState.queryBuilder.tags.splice(index, 1)
+          draftQuery.builderConfig.tags.splice(index, 1)
+          draftState.queryBuilder.tags.splice(index, 1)
+        }
 
         if (selectedValues.length) {
           buildActiveQuery(draftState)
@@ -1111,14 +1116,11 @@ const initialQueryResultsState = (): QueryResultsState => ({
   statuses: null,
 })
 
-const buildActiveQuery = (
-  draftState: TimeMachineState,
-  currentIndex?: number
-) => {
+const buildActiveQuery = (draftState: TimeMachineState) => {
   const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
 
   if (isConfigValid(draftQuery.builderConfig)) {
-    draftQuery.text = buildQuery(draftQuery.builderConfig, currentIndex)
+    draftQuery.text = buildQuery(draftQuery.builderConfig)
   } else {
     draftQuery.text = ''
   }

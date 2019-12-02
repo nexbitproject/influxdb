@@ -83,7 +83,6 @@ export const isCheckSaveable = (
 
 export function buildQuery(
   builderConfig: BuilderConfig,
-  currentIndex?: number
 ): string {
   const {functions} = builderConfig
 
@@ -91,10 +90,10 @@ export function buildQuery(
 
   if (functions.length) {
     query = functions
-      .map(f => buildQueryHelper(builderConfig, f, currentIndex))
+      .map(f => buildQueryHelper(builderConfig, f))
       .join('\n\n')
   } else {
-    query = buildQueryHelper(builderConfig, null, currentIndex)
+    query = buildQueryHelper(builderConfig, null)
   }
 
   return query
@@ -103,21 +102,23 @@ export function buildQuery(
 function buildQueryHelper(
   builderConfig: BuilderConfig,
   fn?: BuilderConfig['functions'][0],
-  currentIndex?: number
 ): string {
   const [bucket] = builderConfig.buckets
-  const tagFilterCall = formatTagFilterCall(builderConfig.tags)
-  const shouldAggregateGroup: boolean =
-    currentIndex &&
-    builderConfig.tags[currentIndex].aggregateFunctionType === 'group'
-  const tagGroupCall = shouldAggregateGroup
-    ? formatTagGroupCall(builderConfig.tags)
-    : ''
+
+  const tags = Array.from(builderConfig.tags)
+
+  let tagsFunctionCalls = ''
+  tags.forEach(tag => {
+    tagsFunctionCalls += formatTagFunctionCall(tag)
+  })
+
+  console.log('query builder', tagsFunctionCalls)
+
   const {aggregateWindow} = builderConfig
   const fnCall = fn ? formatFunctionCall(fn, aggregateWindow.period) : ''
 
   const query = `from(bucket: "${bucket}")
-  |> range(start: ${OPTION_NAME}.${TIME_RANGE_START}, stop: ${OPTION_NAME}.${TIME_RANGE_STOP})${tagFilterCall}${tagGroupCall}${fnCall}`
+  |> range(start: ${OPTION_NAME}.${TIME_RANGE_START}, stop: ${OPTION_NAME}.${TIME_RANGE_STOP})${tagsFunctionCalls}${fnCall}`
 
   return query
 }
@@ -135,6 +136,27 @@ export function formatFunctionCall(
   const formattedPeriod = formatPeriod(period)
 
   return `\n  ${fnSpec.flux(formattedPeriod)}\n  |> yield(name: "${fn.name}")`
+}
+
+const formatTagFunctionCall = function formatTagFunctionCall(tag: BuilderTagsType) {
+  if (tag.aggregateFunctionType === 'filter') {
+    const fnBody = tag.values.map(value => `r.${tag.key} == "${value}"`).join(' or ')
+    return `\n  |> filter(fn: (r) => ${fnBody})`
+  }
+
+  if (tag.aggregateFunctionType === 'group') {
+    tag.values.map(value => console.log('value', value))
+
+    const quotedValues = tag.values.map(value => `"${value}"`) // wrap the value in double quotes
+
+    if (quotedValues.length) {
+      return `\n  |> group(columns: [${quotedValues.join(', ')}])` // join with a comma (e.g. "foo","bar","baz")
+    }
+
+    return '\n  |> group()'
+  }
+
+  return ''
 }
 
 const formatPeriod = (period: string): string => {
@@ -162,13 +184,21 @@ function formatTagFilterCall(tagsSelections: BuilderConfig['tags']) {
   return `\n  ${calls}`
 }
 
-function formatTagGroupCall(tagsSelections: BuilderConfig['tags']) {
-  const tags = Array.from(tagsSelections)
-  tags.shift()
-
-  if (!tags.length) {
-    return '\n  |> group()'
+function formatTagGroupCall(tagsSelections: BuilderConfig['tags'], currentIndex?: number) {
+  if (!tagsSelections.length) {
+    return ''
   }
+  const tags = Array.from(tagsSelections)
+  // tags.shift()
+  // tags.forEach(tag => console.log('tag', {...tag}))
+
+  // const shouldAggregateGroup: boolean =
+  //   currentIndex &&
+  //   builderConfig.tags[currentIndex].aggregateFunctionType === 'group'
+
+  // if (!tags.length) {
+  //   return '\n  |> group()'
+  // }
 
   const columns = tags
     .filter(({key, values}) => key && key === '_field' && values.length)
