@@ -301,20 +301,22 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     emptyText = ''
   } else {
     emptyText = `Select a ${tags[ownProps.index - 1].key} value first`
-
-    // if we're grouping, we want to be able to group on the previously filtered tags
-    // so add them to the keys we can select
-    if (aggregateFunctionType === 'group') {
-      if (keys[0] !== previousTagSelector.key) {
-        keys.unshift(previousTagSelector.key)
-      }
-      // if we're not grouping, and we added some keys already, get rid of them
-    } else {
-      if (keys[0] === previousTagSelector.key) {
-        keys.shift()
-      }
-    }
   }
+
+  // console.log('keys', keys, tags)
+  console.log('your mom ', getActiveTimeMachine(state).queryBuilder.tags)
+
+  // if we're grouping, we want to be able to group on all previous tags
+  // if (aggregateFunctionType === 'group') {
+  //   if (keys[0] !== previousTagSelector.key) {
+  //     keys.unshift(previousTagSelector.key)
+  //   }
+  // // if we're not grouping, and we added some keys already, get rid of them
+  // } else {
+  //   if (keys[0] === previousTagSelector.key) {
+  //     keys.shift()
+  //   }
+  // }
 
   const isInCheckOverlay = getIsInCheckOverlay(state)
 
