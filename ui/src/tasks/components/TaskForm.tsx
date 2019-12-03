@@ -79,6 +79,7 @@ export default class TaskForm extends PureComponent<Props, State> {
                   placeholder="Name your task"
                   onChange={onChangeInput}
                   value={name}
+                  testID="task-form-name"
                 />
               </Form.Element>
             </Grid.Column>
@@ -96,6 +97,7 @@ export default class TaskForm extends PureComponent<Props, State> {
                       value={TaskSchedule.interval}
                       titleText="Run task at regular intervals"
                       onClick={this.handleChangeScheduleType}
+                      testID="task-card-every-btn"
                     >
                       Every
                     </Radio.Button>
@@ -105,6 +107,7 @@ export default class TaskForm extends PureComponent<Props, State> {
                       value={TaskSchedule.cron}
                       titleText="Use cron syntax for more control over scheduling"
                       onClick={this.handleChangeScheduleType}
+                      testID="task-card-cron-btn"
                     >
                       Cron
                     </Radio.Button>
@@ -123,7 +126,7 @@ export default class TaskForm extends PureComponent<Props, State> {
             {isInOverlay && (
               <Grid.Column widthXS={Columns.Twelve}>
                 <Form.Element label="Output Bucket">
-                  <GetResources resource={ResourceType.Buckets}>
+                  <GetResources resources={[ResourceType.Buckets]}>
                     <TaskOptionsBucketDropdown
                       selectedBucketName={toBucketName}
                       onChangeBucketName={onChangeToBucketName}
@@ -158,6 +161,7 @@ export default class TaskForm extends PureComponent<Props, State> {
             status={
               canSubmit ? ComponentStatus.Default : ComponentStatus.Disabled
             }
+            testID="task-form-save"
           />
         </Form.Footer>
       </Grid.Column>

@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -31,6 +32,7 @@ import (
 	"github.com/influxdata/influxdb/kv"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/nats"
+	"github.com/influxdata/influxdb/pkger"
 	infprom "github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/control"
@@ -44,12 +46,13 @@ import (
 	"github.com/influxdata/influxdb/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/influxdb/task/backend/executor"
 	"github.com/influxdata/influxdb/task/backend/middleware"
+	"github.com/influxdata/influxdb/task/backend/scheduler"
 	"github.com/influxdata/influxdb/telemetry"
 	_ "github.com/influxdata/influxdb/tsdb/tsi1" // needed for tsi1
 	_ "github.com/influxdata/influxdb/tsdb/tsm1" // needed for tsm1
 	"github.com/influxdata/influxdb/vault"
 	pzap "github.com/influxdata/influxdb/zap"
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
@@ -69,6 +72,7 @@ const (
 	JaegerTracing = "jaeger"
 )
 
+// NewCommand creates the command to run influxdb.
 func NewCommand() *cobra.Command {
 	l := NewLauncher()
 	cmd := &cobra.Command{
@@ -112,6 +116,8 @@ func NewCommand() *cobra.Command {
 
 	return cmd
 }
+
+var vaultConfig vault.Config
 
 func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 	dir, err := fs.InfluxDir()
@@ -191,6 +197,74 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Default: false,
 			Desc:    "disables automatically extending session ttl on request",
 		},
+		{
+			DestP: &vaultConfig.Address,
+			Flag:  "vault-addr",
+			Desc:  "address of the Vault server expressed as a URL and port, for example: https://127.0.0.1:8200/.",
+		},
+		{
+			DestP: &vaultConfig.ClientTimeout,
+			Flag:  "vault-client-timeout",
+			Desc:  "timeout variable. The default value is 60s.",
+		},
+		{
+			DestP: &vaultConfig.MaxRetries,
+			Flag:  "vault-max-retries",
+			Desc:  "maximum number of retries when a 5xx error code is encountered. The default is 2, for three total attempts. Set this to 0 or less to disable retrying.",
+		},
+		{
+			DestP: &vaultConfig.CACert,
+			Flag:  "vault-cacert",
+			Desc:  "path to a PEM-encoded CA certificate file on the local disk. This file is used to verify the Vault server's SSL certificate. This environment variable takes precedence over VAULT_CAPATH.",
+		},
+		{
+			DestP: &vaultConfig.CAPath,
+			Flag:  "vault-capath",
+			Desc:  "path to a directory of PEM-encoded CA certificate files on the local disk. These certificates are used to verify the Vault server's SSL certificate.",
+		},
+		{
+			DestP: &vaultConfig.ClientCert,
+			Flag:  "vault-client-cert",
+			Desc:  "path to a PEM-encoded client certificate on the local disk. This file is used for TLS communication with the Vault server.",
+		},
+		{
+			DestP: &vaultConfig.ClientKey,
+			Flag:  "vault-client-key",
+			Desc:  "path to an unencrypted, PEM-encoded private key on disk which corresponds to the matching client certificate.",
+		},
+		{
+			DestP: &vaultConfig.InsecureSkipVerify,
+			Flag:  "vault-skip-verify",
+			Desc:  "do not verify Vault's presented certificate before communicating with it. Setting this variable is not recommended and voids Vault's security model.",
+		},
+		{
+			DestP: &vaultConfig.TLSServerName,
+			Flag:  "vault-tls-server-name",
+			Desc:  "name to use as the SNI host when connecting via TLS.",
+		},
+		{
+			DestP: &vaultConfig.Token,
+			Flag:  "vault-token",
+			Desc:  "vault authentication token",
+		},
+		{
+			DestP:   &l.httpTLSCert,
+			Flag:    "tls-cert",
+			Default: "",
+			Desc:    "TLS certificate for HTTPs",
+		},
+		{
+			DestP:   &l.httpTLSKey,
+			Flag:    "tls-key",
+			Default: "",
+			Desc:    "TLS key for HTTPs",
+		},
+		{
+			DestP:   &l.EnableNewScheduler,
+			Flag:    "feature-enable-new-scheduler",
+			Default: false,
+			Desc:    "feature flag that enables using the new treescheduler",
+		},
 	}
 
 	cli.BindOptions(cmd, opts)
@@ -221,18 +295,22 @@ type Launcher struct {
 
 	boltClient    *bolt.Client
 	kvService     *kv.Service
-	engine        *storage.Engine
+	engine        Engine
 	StorageConfig storage.Config
 
 	queryController *control.Controller
 
-	httpPort   int
-	httpServer *nethttp.Server
+	httpPort    int
+	httpServer  *nethttp.Server
+	httpTLSCert string
+	httpTLSKey  string
 
 	natsServer *nats.Server
 	natsPort   int
 
+	EnableNewScheduler bool
 	scheduler          *taskbackend.TickScheduler
+	treeScheduler      *scheduler.TreeScheduler
 	taskControlService taskbackend.TaskControlService
 
 	jaegerTracerCloser io.Closer
@@ -287,7 +365,7 @@ func (m *Launcher) NatsURL() string {
 
 // Engine returns a reference to the storage engine. It should only be called
 // for end-to-end testing purposes.
-func (m *Launcher) Engine() *storage.Engine {
+func (m *Launcher) Engine() Engine {
 	return m.engine
 }
 
@@ -296,7 +374,11 @@ func (m *Launcher) Shutdown(ctx context.Context) {
 	m.httpServer.Shutdown(ctx)
 
 	m.logger.Info("Stopping", zap.String("service", "task"))
-	m.scheduler.Stop()
+	if m.EnableNewScheduler {
+		m.treeScheduler.Stop()
+	} else {
+		m.scheduler.Stop()
+	}
 
 	m.logger.Info("Stopping", zap.String("service", "nats"))
 	m.natsServer.Close()
@@ -412,20 +494,20 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		SessionLength: time.Duration(m.sessionLength) * time.Minute,
 	}
 
-	var flusher http.Flusher
+	flushers := flushers{}
 	switch m.storeType {
 	case BoltStore:
 		store := bolt.NewKVStore(m.boltPath)
 		store.WithDB(m.boltClient.DB())
 		m.kvService = kv.NewService(store, serviceConfig)
 		if m.testing {
-			flusher = store
+			flushers = append(flushers, store)
 		}
 	case MemoryStore:
 		store := inmem.NewKVStore()
 		m.kvService = kv.NewService(store, serviceConfig)
 		if m.testing {
-			flusher = store
+			flushers = append(flushers, store)
 		}
 	default:
 		err := fmt.Errorf("unknown store type %s; expected bolt or memory", m.storeType)
@@ -477,7 +559,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	case "vault":
 		// The vault secret service is configured using the standard vault environment variables.
 		// https://www.vaultproject.io/docs/commands/index.html#environment-variables
-		svc, err := vault.NewSecretService()
+		svc, err := vault.NewSecretService(vault.WithConfig(vaultConfig))
 		if err != nil {
 			m.logger.Error("failed initializing vault secret service", zap.Error(err))
 			return err
@@ -495,82 +577,138 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	var pointsWriter storage.PointsWriter
-	{
+	if m.testing {
+		// the testing engine will write/read into a temporary directory
+		engine := NewTemporaryEngine(m.StorageConfig, storage.WithRetentionEnforcer(bucketSvc))
+		flushers = append(flushers, engine)
+		m.engine = engine
+	} else {
 		m.engine = storage.NewEngine(m.enginePath, m.StorageConfig, storage.WithRetentionEnforcer(bucketSvc))
-		m.engine.WithLogger(m.logger)
-
-		if err := m.engine.Open(ctx); err != nil {
-			m.logger.Error("failed to open engine", zap.Error(err))
-			return err
-		}
-		// The Engine's metrics must be registered after it opens.
-		m.reg.MustRegister(m.engine.PrometheusCollectors()...)
-
-		pointsWriter = m.engine
-
-		// TODO(cwolff): Figure out a good default per-query memory limit:
-		//   https://github.com/influxdata/influxdb/issues/13642
-		const (
-			concurrencyQuota         = 10
-			memoryBytesQuotaPerQuery = math.MaxInt64
-			QueueSize                = 10
-		)
-
-		cc := control.Config{
-			ConcurrencyQuota:         concurrencyQuota,
-			MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
-			QueueSize:                QueueSize,
-			Logger:                   m.logger.With(zap.String("service", "storage-reads")),
-		}
-
-		authBucketSvc := authorizer.NewBucketService(bucketSvc)
-		authOrgSvc := authorizer.NewOrgService(orgSvc)
-		authSecretSvc := authorizer.NewSecretService(secretSvc)
-		reader := reads.NewReader(readservice.NewStore(m.engine))
-		deps, err := influxdb.NewDependencies(reader, m.engine, authBucketSvc, authOrgSvc, authSecretSvc, cc.MetricLabelKeys)
-		if err != nil {
-			m.logger.Error("Failed to get query controller dependencies", zap.Error(err))
-			return err
-		}
-		cc.ExecutorDependencies = []flux.Dependency{deps}
-
-		c, err := control.New(cc)
-		if err != nil {
-			m.logger.Error("Failed to create query controller", zap.Error(err))
-			return err
-		}
-		m.queryController = c
-		m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 	}
+	m.engine.WithLogger(m.logger)
+	if err := m.engine.Open(ctx); err != nil {
+		m.logger.Error("failed to open engine", zap.Error(err))
+		return err
+	}
+	// The Engine's metrics must be registered after it opens.
+	m.reg.MustRegister(m.engine.PrometheusCollectors()...)
+
+	var (
+		deleteService platform.DeleteService = m.engine
+		pointsWriter  storage.PointsWriter   = m.engine
+	)
+
+	// TODO(cwolff): Figure out a good default per-query memory limit:
+	//   https://github.com/influxdata/influxdb/issues/13642
+	const (
+		concurrencyQuota         = 10
+		memoryBytesQuotaPerQuery = math.MaxInt64
+		QueueSize                = 10
+	)
+
+	deps, err := influxdb.NewDependencies(
+		reads.NewReader(readservice.NewStore(m.engine)),
+		m.engine,
+		authorizer.NewBucketService(bucketSvc),
+		authorizer.NewOrgService(orgSvc),
+		authorizer.NewSecretService(secretSvc),
+		nil,
+	)
+	if err != nil {
+		m.logger.Error("Failed to get query controller dependencies", zap.Error(err))
+		return err
+	}
+
+	m.queryController, err = control.New(control.Config{
+		ConcurrencyQuota:         concurrencyQuota,
+		MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
+		QueueSize:                QueueSize,
+		Logger:                   m.logger.With(zap.String("service", "storage-reads")),
+		ExecutorDependencies:     []flux.Dependency{deps},
+	})
+	if err != nil {
+		m.logger.Error("Failed to create query controller", zap.Error(err))
+		return err
+	}
+
+	m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 
 	var storageQueryService = readservice.NewProxyQueryService(m.queryController)
 	var taskSvc platform.TaskService
 	{
-
 		// create the task stack:
 		// validation(coordinator(analyticalstore(kv.Service)))
+		combinedTaskService := taskbackend.NewAnalyticalStorage(m.logger.With(zap.String("service", "task-analytical-store")), m.kvService, m.kvService, m.kvService, pointsWriter, query.QueryServiceBridge{AsyncQueryService: m.queryController})
+		if m.EnableNewScheduler {
+			executor, executorMetrics := taskexecutor.NewExecutor(
+				m.logger.With(zap.String("service", "task-executor")),
+				query.QueryServiceBridge{AsyncQueryService: m.queryController},
+				authSvc,
+				combinedTaskService,
+				combinedTaskService,
+			)
+			m.reg.MustRegister(executorMetrics.PrometheusCollectors()...)
+			schLogger := m.logger.With(zap.String("service", "task-scheduler"))
 
-		// define the executor and build analytical storage middleware
-		combinedTaskService := taskbackend.NewAnalyticalStorage(m.logger.With(zap.String("service", "task-analytical-store")), m.kvService, m.kvService, pointsWriter, query.QueryServiceBridge{AsyncQueryService: m.queryController})
-		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, combinedTaskService)
+			sch, sm, err := scheduler.NewScheduler(
+				executor,
+				taskbackend.NewSchedulableTaskService(m.kvService),
+				scheduler.WithOnErrorFn(func(ctx context.Context, taskID scheduler.ID, scheduledAt time.Time, err error) {
+					schLogger.Info(
+						"error in scheduler run",
+						zap.String("taskID", platform.ID(taskID).String()),
+						zap.Time("scheduledAt", scheduledAt),
+						zap.Error(err))
+				}),
+			)
+			if err != nil {
+				m.logger.Fatal("could not start task scheduler", zap.Error(err))
+			}
+			m.treeScheduler = sch
+			m.reg.MustRegister(sm.PrometheusCollectors()...)
+			coordLogger := m.logger.With(zap.String("service", "task-coordinator"))
+			taskCoord := coordinator.NewCoordinator(
+				coordLogger,
+				sch,
+				executor)
 
-		// create the scheduler
-		m.scheduler = taskbackend.NewScheduler(combinedTaskService, executor, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
-		m.scheduler.Start(ctx)
-		m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
+			taskSvc = middleware.New(combinedTaskService, taskCoord)
+			m.taskControlService = combinedTaskService
+			if err := taskbackend.TaskNotifyCoordinatorOfExisting(
+				ctx,
+				taskSvc,
+				combinedTaskService,
+				taskCoord,
+				func(ctx context.Context, taskID platform.ID, runID platform.ID) error {
+					_, err := executor.ResumeCurrentRun(ctx, taskID, runID)
+					return err
+				},
+				coordLogger); err != nil {
+				m.logger.Error("failed to resume existing tasks", zap.Error(err))
+			}
+		} else {
 
-		logger := m.logger.With(zap.String("service", "task-coordinator"))
-		coordinator := coordinator.New(logger, m.scheduler)
+			// define the executor and build analytical storage middleware
+			executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, combinedTaskService)
 
-		// resume existing task claims from task service
-		if err := taskbackend.NotifyCoordinatorOfExisting(ctx, combinedTaskService, coordinator, logger); err != nil {
-			logger.Error("failed to resume existing tasks", zap.Error(err))
+			// create the scheduler
+			m.scheduler = taskbackend.NewScheduler(combinedTaskService, executor, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
+			m.scheduler.Start(ctx)
+			m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
+
+			logger := m.logger.With(zap.String("service", "task-coordinator"))
+			coordinator := coordinator.New(logger, m.scheduler)
+
+			// resume existing task claims from task service
+			if err := taskbackend.NotifyCoordinatorOfExisting(ctx, combinedTaskService, coordinator, logger); err != nil {
+				logger.Error("failed to resume existing tasks", zap.Error(err))
+			}
+
+			taskSvc = middleware.New(combinedTaskService, coordinator)
+			taskSvc = authorizer.NewTaskService(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc)
+			m.taskControlService = combinedTaskService
 		}
 
-		taskSvc = middleware.New(combinedTaskService, coordinator)
-		taskSvc = authorizer.NewTaskService(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc, bucketSvc)
-		m.taskControlService = combinedTaskService
 	}
 
 	var checkSvc platform.CheckService
@@ -668,6 +806,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		NewBucketService:     source.NewBucketService,
 		NewQueryService:      source.NewQueryService,
 		PointsWriter:         pointsWriter,
+		DeleteService:        deleteService,
 		AuthorizationService: authSvc,
 		// Wrap the BucketService in a storage backed one that will ensure deleted buckets are removed from the storage engine.
 		BucketService:                   storage.NewBucketService(bucketSvc, m.engine),
@@ -704,19 +843,39 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	m.reg.MustRegister(m.apibackend.PrometheusCollectors()...)
 
+	var pkgSVC pkger.SVC
+	{
+		b := m.apibackend
+		pkgSVC = pkger.NewService(
+			pkger.WithLogger(m.logger.With(zap.String("service", "pkger"))),
+			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService)),
+			pkger.WithDashboardSVC(authorizer.NewDashboardService(b.DashboardService)),
+			pkger.WithLabelSVC(authorizer.NewLabelService(b.LabelService)),
+			pkger.WithVariableSVC(authorizer.NewVariableService(b.VariableService)),
+		)
+	}
+
+	var pkgHTTPServer *http.HandlerPkg
+	{
+		pkgHTTPServer = http.NewHandlerPkg(m.apibackend.HTTPErrorHandler, pkgSVC)
+	}
+
 	// HTTP server
-	httpLogger := m.logger.With(zap.String("service", "http"))
-	platformHandler := http.NewPlatformHandler(m.apibackend)
+	platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer))
 	m.reg.MustRegister(platformHandler.PrometheusCollectors()...)
 
 	h := http.NewHandlerFromRegistry("platform", m.reg)
 	h.Handler = platformHandler
+	httpLogger := m.logger.With(zap.String("service", "http"))
+	if logconf.Level == zap.DebugLevel {
+		h.Handler = http.LoggingMW(httpLogger)(h.Handler)
+	}
 	h.Logger = httpLogger
 
 	m.httpServer.Handler = h
 	// If we are in testing mode we allow all data to be flushed and removed.
 	if m.testing {
-		m.httpServer.Handler = http.DebugFlush(ctx, h, flusher)
+		m.httpServer.Handler = http.DebugFlush(ctx, h, flushers)
 	}
 
 	ln, err := net.Listen("tcp", m.httpBindAddress)
@@ -726,6 +885,23 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
+	var cer tls.Certificate
+	transport := "http"
+
+	if m.httpTLSCert != "" && m.httpTLSKey != "" {
+		var err error
+		cer, err = tls.LoadX509KeyPair(m.httpTLSCert, m.httpTLSKey)
+
+		if err != nil {
+			httpLogger.Error("failed to load x509 key pair", zap.Error(err))
+			httpLogger.Info("Stopping")
+			return err
+		}
+		transport = "https"
+
+		m.httpServer.TLSConfig = &tls.Config{}
+	}
+
 	if addr, ok := ln.Addr().(*net.TCPAddr); ok {
 		m.httpPort = addr.Port
 	}
@@ -733,10 +909,16 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.wg.Add(1)
 	go func(logger *zap.Logger) {
 		defer m.wg.Done()
-		logger.Info("Listening", zap.String("transport", "http"), zap.String("addr", m.httpBindAddress), zap.Int("port", m.httpPort))
+		logger.Info("Listening", zap.String("transport", transport), zap.String("addr", m.httpBindAddress), zap.Int("port", m.httpPort))
 
-		if err := m.httpServer.Serve(ln); err != nethttp.ErrServerClosed {
-			logger.Error("failed http service", zap.Error(err))
+		if cer.Certificate != nil {
+			if err := m.httpServer.ServeTLS(ln, m.httpTLSCert, m.httpTLSKey); err != nethttp.ErrServerClosed {
+				logger.Error("failed https service", zap.Error(err))
+			}
+		} else {
+			if err := m.httpServer.Serve(ln); err != nethttp.ErrServerClosed {
+				logger.Error("failed http service", zap.Error(err))
+			}
 		}
 		logger.Info("Stopping")
 	}(httpLogger)
@@ -785,6 +967,7 @@ func (m *Launcher) TaskControlService() taskbackend.TaskControlService {
 }
 
 // TaskScheduler returns the internal scheduler service.
+// TODO(docmerlin): remove this when we delete the old scheduler
 func (m *Launcher) TaskScheduler() taskbackend.Scheduler {
 	return m.scheduler
 }

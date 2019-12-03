@@ -352,7 +352,21 @@ export const selectTaskByID = (id: string) => async (
   }
 }
 
-export const selectTask = (task: Task) => async (
+export const setAllTaskOptionsByID = (taskID: string) => async (
+  dispatch
+): Promise<void> => {
+  try {
+    const task = await client.tasks.get(taskID)
+    dispatch(setAllTaskOptions(task))
+  } catch (e) {
+    console.error(e)
+    dispatch(goToTasks())
+    const message = getErrorMessage(e)
+    dispatch(notify(taskNotFound(message)))
+  }
+}
+
+export const selectTask = (task: Task) => (
   dispatch,
   getState: GetStateFunc
 ) => {
@@ -363,7 +377,7 @@ export const selectTask = (task: Task) => async (
   dispatch(push(`/orgs/${org.id}/tasks/${task.id}`))
 }
 
-export const goToTasks = () => async (dispatch, getState: GetStateFunc) => {
+export const goToTasks = () => (dispatch, getState: GetStateFunc) => {
   const {
     orgs: {org},
   } = getState()
@@ -371,7 +385,7 @@ export const goToTasks = () => async (dispatch, getState: GetStateFunc) => {
   dispatch(push(`/orgs/${org.id}/tasks`))
 }
 
-export const cancel = () => async dispatch => {
+export const cancel = () => dispatch => {
   dispatch(setCurrentTask(null))
   dispatch(goBack())
 }
@@ -515,7 +529,7 @@ export const createTaskFromTemplate = (template: TaskTemplate) => async (
   try {
     const {
       orgs: {org},
-    } = await getState()
+    } = getState()
 
     await createTaskFromTemplateAJAX(template, org.id)
 

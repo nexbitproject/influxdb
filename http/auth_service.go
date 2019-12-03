@@ -8,12 +8,13 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"time"
 
 	"go.uber.org/zap"
 
+	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
-	"github.com/julienschmidt/httprouter"
 )
 
 // AuthorizationBackend is all services and associated parameters required to construct
@@ -85,6 +86,8 @@ type authResponse struct {
 	User        string               `json:"user"`
 	Permissions []permissionResponse `json:"permissions"`
 	Links       map[string]string    `json:"links"`
+	CreatedAt   time.Time            `json:"createdAt"`
+	UpdatedAt   time.Time            `json:"updatedAt"`
 }
 
 func newAuthResponse(a *platform.Authorization, org *platform.Organization, user *platform.User, ps []permissionResponse) *authResponse {
@@ -102,6 +105,8 @@ func newAuthResponse(a *platform.Authorization, org *platform.Organization, user
 			"self": fmt.Sprintf("/api/v2/authorizations/%s", a.ID),
 			"user": fmt.Sprintf("/api/v2/users/%s", a.UserID),
 		},
+		CreatedAt: a.CreatedAt,
+		UpdatedAt: a.UpdatedAt,
 	}
 	return res
 }
@@ -114,6 +119,10 @@ func (a *authResponse) toPlatform() *platform.Authorization {
 		Description: a.Description,
 		OrgID:       a.OrgID,
 		UserID:      a.UserID,
+		CRUDLog: platform.CRUDLog{
+			CreatedAt: a.CreatedAt,
+			UpdatedAt: a.UpdatedAt,
+		},
 	}
 	for _, p := range a.Permissions {
 		res.Permissions = append(res.Permissions, platform.Permission{Action: p.Action, Resource: p.Resource.Resource})
@@ -185,8 +194,6 @@ func newAuthsResponse(as []*authResponse) *authsResponse {
 // handlePostAuthorization is the HTTP handler for the POST /api/v2/authorizations route.
 func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	h.Logger.Debug("create auth request", zap.String("r", fmt.Sprint(r)))
 
 	req, err := decodePostAuthorizationRequest(ctx, r)
 	if err != nil {
@@ -327,8 +334,6 @@ func decodePostAuthorizationRequest(ctx context.Context, r *http.Request) (*post
 // handleGetAuthorizations is the HTTP handler for the GET /api/v2/authorizations route.
 func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("get auths request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeGetAuthorizationsRequest(ctx, r)
 	if err != nil {
 		h.Logger.Info("failed to decode request", zap.String("handler", "getAuthorizations"), zap.Error(err))
@@ -426,8 +431,6 @@ func decodeGetAuthorizationsRequest(ctx context.Context, r *http.Request) (*getA
 // handleGetAuthorization is the HTTP handler for the GET /api/v2/authorizations/:id route.
 func (h *AuthorizationHandler) handleGetAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	h.Logger.Debug("get auth request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeGetAuthorizationRequest(ctx, r)
 	if err != nil {
 		h.Logger.Info("failed to decode request", zap.String("handler", "getAuthorization"), zap.Error(err))
@@ -495,8 +498,6 @@ func decodeGetAuthorizationRequest(ctx context.Context, r *http.Request) (*getAu
 // handleUpdateAuthorization is the HTTP handler for the PATCH /api/v2/authorizations/:id route that updates the authorization's status and desc.
 func (h *AuthorizationHandler) handleUpdateAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	h.Logger.Debug("update auth request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeUpdateAuthorizationRequest(ctx, r)
 	if err != nil {
 		h.Logger.Info("failed to decode request", zap.String("handler", "updateAuthorization"), zap.Error(err))
@@ -575,9 +576,6 @@ func decodeUpdateAuthorizationRequest(ctx context.Context, r *http.Request) (*up
 // handleDeleteAuthorization is the HTTP handler for the DELETE /api/v2/authorizations/:id route.
 func (h *AuthorizationHandler) handleDeleteAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	h.Logger.Debug("delete auth request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeDeleteAuthorizationRequest(ctx, r)
 	if err != nil {
 		h.Logger.Info("failed to decode request", zap.String("handler", "deleteAuthorization"), zap.Error(err))

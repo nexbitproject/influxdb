@@ -1,12 +1,23 @@
 import {get} from 'lodash'
 
-import {AppState, View, Check, ViewType, RemoteDataState} from 'src/types'
+import {
+  AppState,
+  View,
+  Check,
+  TimeRange,
+  ViewType,
+  RemoteDataState,
+} from 'src/types'
+
+import {Range} from 'src/dashboards/reducers/ranges'
 
 import {
   getValuesForVariable,
   getTypeForVariable,
   getArgumentValuesForVariable,
 } from 'src/variables/selectors'
+
+import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 
 export const getView = (state: AppState, id: string): View => {
   return get(state, `views.views.${id}.view`)
@@ -15,6 +26,12 @@ export const getView = (state: AppState, id: string): View => {
 export const getViewStatus = (state: AppState, id: string): RemoteDataState => {
   return get(state, `views.views.${id}.status`, RemoteDataState.Loading)
 }
+
+export const getTimeRangeByDashboardID = (
+  ranges: Range[] = [],
+  dashboardID: string = ''
+): TimeRange =>
+  ranges.find(r => r.dashboardID === dashboardID) || DEFAULT_TIME_RANGE
 
 export const getCheckForView = (
   state: AppState,
@@ -72,14 +89,14 @@ export const getVariableValuesForDropdown = (
       const mapValues = getArgumentValuesForVariable(state, variableID) as {
         [key: string]: string
       }
+
       const list = Object.entries(mapValues).map(([name, value]) => ({
         name,
         value,
       }))
-      const selection = list.find(({value}) => value === selectedValue)
 
       return {
-        selectedKey: get(selection, 'name', ''),
+        selectedKey: selectedValue,
         list,
       }
     }

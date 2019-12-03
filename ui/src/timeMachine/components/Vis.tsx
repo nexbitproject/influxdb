@@ -28,11 +28,17 @@ import {
   QueryViewProperties,
   TimeZone,
   Check,
+  StatusRow,
 } from 'src/types'
+
+// Selectors
+import {getEndTime, getStartTime} from 'src/timeMachine/selectors/index'
 
 interface StateProps {
   loading: RemoteDataState
   errorMessage: string
+  endTime: number
+  startTime: number
   files: string[]
   viewProperties: QueryViewProperties
   isInitialFetch: boolean
@@ -44,6 +50,7 @@ interface StateProps {
   fillColumns: string[]
   symbolColumns: string[]
   timeZone: TimeZone
+  statuses: StatusRow[][]
 }
 
 type Props = StateProps
@@ -51,6 +58,7 @@ type Props = StateProps
 const TimeMachineVis: SFC<Props> = ({
   loading,
   errorMessage,
+  endTime,
   isInitialFetch,
   isViewingRawData,
   files,
@@ -61,7 +69,9 @@ const TimeMachineVis: SFC<Props> = ({
   yColumn,
   fillColumns,
   symbolColumns,
+  startTime,
   timeZone,
+  statuses,
 }) => {
   // If the current selections for `xColumn`/`yColumn`/ etc. are invalid given
   // the current Flux response, attempt to make a valid selection instead. This
@@ -103,11 +113,14 @@ const TimeMachineVis: SFC<Props> = ({
           ) : (
             <ViewSwitcher
               giraffeResult={giraffeResult}
+              endTime={endTime}
               files={files}
               loading={loading}
               properties={resolvedViewProperties}
               check={check}
+              startTime={startTime}
               timeZone={timeZone}
+              statuses={statuses}
             />
           )}
         </EmptyQueryView>
@@ -120,8 +133,15 @@ const mstp = (state: AppState): StateProps => {
   const {
     isViewingRawData,
     view: {properties: viewProperties},
-    queryResults: {status: loading, errorMessage, isInitialFetch, files},
+    queryResults: {
+      status: loading,
+      errorMessage,
+      isInitialFetch,
+      files,
+      statuses,
+    },
     alerting: {check},
+    timeRange,
   } = getActiveTimeMachine(state)
 
   const giraffeResult = getVisTable(state)
@@ -146,6 +166,9 @@ const mstp = (state: AppState): StateProps => {
     fillColumns,
     symbolColumns,
     timeZone,
+    startTime: getStartTime(timeRange),
+    endTime: getEndTime(timeRange),
+    statuses,
   }
 }
 

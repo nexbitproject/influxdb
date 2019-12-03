@@ -1,5 +1,7 @@
 // Libraries
 import {Dispatch} from 'react'
+import {push} from 'react-router-redux'
+import {get} from 'lodash'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -32,6 +34,7 @@ import {
   RemoteDataState,
   CheckViewProperties,
   Label,
+  PostCheck,
 } from 'src/types'
 import {createView} from 'src/shared/utils/view'
 
@@ -97,8 +100,12 @@ export const getChecks = () => async (
 }
 
 export const getCheckForTimeMachine = (checkID: string) => async (
-  dispatch: Dispatch<TimeMachineAction | NotificationAction>
+  dispatch: Dispatch<TimeMachineAction | NotificationAction>,
+  getState: GetState
 ) => {
+  const {
+    orgs: {org},
+  } = getState()
   try {
     dispatch(setCheckStatus(RemoteDataState.Loading))
 
@@ -123,6 +130,7 @@ export const getCheckForTimeMachine = (checkID: string) => async (
     )
   } catch (e) {
     console.error(e)
+    dispatch(push(`/orgs/${org.id}/alerting`))
     dispatch(setCheckStatus(RemoteDataState.Error))
     dispatch(notify(copy.getCheckFailed(e.message)))
   }
@@ -144,7 +152,13 @@ export const saveCheckFromTimeMachine = () => async (
     alerting: {check},
   } = getActiveTimeMachine(state)
 
-  const checkWithOrg = {...check, query: draftQueries[0], orgID} as Check
+  const labels = get(check, 'labels', []) as Label[]
+  const checkWithOrg = {
+    ...check,
+    query: draftQueries[0],
+    orgID,
+    labels: labels.map(l => l.id),
+  } as PostCheck
 
   const resp = check.id
     ? await api.patchCheck({checkID: check.id, data: checkWithOrg})
@@ -241,8 +255,13 @@ export const cloneCheck = (check: Check) => async (
     const allCheckNames = list.map(c => c.name)
 
     const clonedName = incrementCloneName(allCheckNames, check.name)
-
-    const resp = await api.postCheck({data: {...check, name: clonedName}})
+    const labels = get(check, 'labels', []) as Label[]
+    const data = {
+      ...check,
+      name: clonedName,
+      labels: labels.map(l => l.id),
+    } as PostCheck
+    const resp = await api.postCheck({data})
 
     if (resp.status !== 201) {
       throw new Error(resp.data.message)
@@ -250,15 +269,13 @@ export const cloneCheck = (check: Check) => async (
 
     dispatch(setCheck(resp.data))
     dispatch(checkChecksLimits())
-
-    // add labels
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.createCheckFailed(error.message)))
   }
 }
 
-export const selectCheckEvery = (every: string) => async dispatch => {
+export const selectCheckEvery = (every: string) => dispatch => {
   dispatch(updateTimeMachineCheck({every}))
   dispatch(executeQueries())
 }

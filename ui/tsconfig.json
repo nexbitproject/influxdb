@@ -31,6 +31,13 @@
     "build",
     "node_modules",
     "cypress",
-    "webpack.tsconfig.json"
+    "coverage",
+    "jest.config.js",
+    "webpack.tsconfig.json",
+    "webpack.star.ts",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/mocks.ts",
+    "coverage"
   ]
 }

@@ -135,10 +135,13 @@ export const removeTaskLabelFailed = (): Notification => ({
 
 //  Dashboard Notifications
 
-export const dashboardGetFailed = (dashboardID: string): Notification => ({
+export const dashboardGetFailed = (
+  dashboardID: string,
+  error: string
+): Notification => ({
   ...defaultErrorNotification,
   icon: 'dash-h',
-  message: `Failed to load dashboard with id "${dashboardID}"`,
+  message: `Failed to load dashboard with id "${dashboardID}": ${error}`,
 })
 
 export const dashboardUpdateFailed = (): Notification => ({
@@ -419,6 +422,14 @@ export const getBucketsFailed = (): Notification => ({
   message: 'Failed to fetch buckets',
 })
 
+export const getBucketFailed = (
+  bucketID: string,
+  error: string
+): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to fetch bucket with id ${bucketID}: ${error}`,
+})
+
 // Limits
 export const readWriteCardinalityLimitReached = (
   message: string
@@ -448,7 +459,7 @@ export const rateLimitReached = (secs?: number): Notification => {
 
 export const resourceLimitReached = (resourceName: string): Notification => ({
   ...defaultErrorNotification,
-  message: `Oops. It looks like you have reached the maximum number of ${resourceName} allowed as part of your plan. If you would like to upgrade and remove this restriction, reach out to cloudbeta@influxdata.com.`,
+  message: `Oops. It looks like you have reached the maximum number of ${resourceName} allowed as part of your plan. If you would like to upgrade and remove this restriction, reach out to support@influxdata.com.`,
   duration: FIVE_SECONDS,
   type: 'resourceLimitReached',
 })
@@ -552,6 +563,21 @@ export const bucketDeleteFailed = (bucketName: string): Notification => ({
   message: `Failed to delete bucket: "${bucketName}"`,
 })
 
+export const predicateDeleteFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to delete data with predicate',
+})
+
+export const setFilterKeyFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to set the filter key tag',
+})
+
+export const setFilterValueFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to set the filter value tag',
+})
+
 export const bucketCreateSuccess = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'Bucket was successfully created',
@@ -565,6 +591,11 @@ export const bucketCreateFailed = (error: string): Notification => ({
 export const bucketUpdateSuccess = (bucketName: string): Notification => ({
   ...defaultSuccessNotification,
   message: `Bucket "${bucketName}" was successfully updated`,
+})
+
+export const predicateDeleteSucceeded = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Successfully deleted data with predicate!',
 })
 
 export const bucketUpdateFailed = (error: string): Notification => ({
@@ -804,12 +835,12 @@ export const getViewFailed = (message: string): Notification => ({
 
 export const getEndpointFailed = (message: string): Notification => ({
   ...defaultErrorNotification,
-  message: `Failed to get endpoints: ${message}`,
+  message: `Failed to get endpoint: ${message}`,
 })
 
 export const getEndpointsFailed = (message: string): Notification => ({
   ...defaultErrorNotification,
-  message: `Failed to get endoint: ${message}`,
+  message: `Failed to get endpoints: ${message}`,
 })
 
 export const createEndpointFailed = (message: string): Notification => ({

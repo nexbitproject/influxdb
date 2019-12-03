@@ -38,14 +38,58 @@ type Tx interface {
 	WithContext(ctx context.Context)
 }
 
+type CursorPredicateFunc func(key, value []byte) bool
+
+type CursorHints struct {
+	KeyPrefix   *string
+	KeyStart    *string
+	PredicateFn CursorPredicateFunc
+}
+
+// CursorHint configures CursorHints
+type CursorHint func(*CursorHints)
+
+// WithCursorHintPrefix is a hint to the store
+// that the caller is only interested keys with the
+// specified prefix.
+func WithCursorHintPrefix(prefix string) CursorHint {
+	return func(o *CursorHints) {
+		o.KeyPrefix = &prefix
+	}
+}
+
+// WithCursorHintKeyStart is a hint to the store
+// that the caller is interested in reading keys from
+// start.
+func WithCursorHintKeyStart(start string) CursorHint {
+	return func(o *CursorHints) {
+		o.KeyStart = &start
+	}
+}
+
+// WithCursorHintPredicate is a hint to the store
+// to return only key / values which return true for the
+// f.
+//
+// The primary concern of the predicate is to improve performance.
+// Therefore, it should perform tests on the data at minimal cost.
+// If the predicate has no meaningful impact on reducing memory or
+// CPU usage, there is no benefit to using it.
+func WithCursorHintPredicate(f CursorPredicateFunc) CursorHint {
+	return func(o *CursorHints) {
+		o.PredicateFn = f
+	}
+}
+
 // Bucket is the abstraction used to perform get/put/delete/get-many operations
 // in a key value store.
 type Bucket interface {
 	// TODO context?
 	// Get returns a key within this bucket. Errors if key does not exist.
 	Get(key []byte) ([]byte, error)
-	// Cursor returns a cursor at the beginning of this bucket.
-	Cursor() (Cursor, error)
+	// Cursor returns a cursor at the beginning of this bucket optionally
+	// using the provided hints to improve performance.
+	Cursor(hints ...CursorHint) (Cursor, error)
 	// Put should error if the transaction it was called in is not writable.
 	Put(key, value []byte) error
 	// Delete should error if the transaction it was called in is not writable.

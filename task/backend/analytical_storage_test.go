@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb"
@@ -35,8 +36,12 @@ func TestAnalyticalStore(t *testing.T) {
 				t.Fatalf("error initializing urm service: %v", err)
 			}
 
-			ab := newAnalyticalBackend(t, svc, svc)
-			svcStack := backend.NewAnalyticalStorage(zaptest.NewLogger(t), svc, svc, ab.PointsWriter(), ab.QueryService())
+			var (
+				ab       = newAnalyticalBackend(t, svc, svc)
+				logger   = zaptest.NewLogger(t)
+				rr       = backend.NewStoragePointsWriterRecorder(ab.PointsWriter(), logger)
+				svcStack = backend.NewAnalyticalRunStorage(logger, svc, svc, svc, rr, ab.QueryService())
+			)
 
 			go func() {
 				<-ctx.Done()
@@ -78,11 +83,12 @@ func TestDeduplicateRuns(t *testing.T) {
 	}
 	mockTCS := &mock.TaskControlService{
 		FinishRunFn: func(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
-			return &influxdb.Run{ID: 2, TaskID: 1, Status: "success", ScheduledFor: "1", StartedAt: "2", FinishedAt: "3"}, nil
+			return &influxdb.Run{ID: 2, TaskID: 1, Status: "success", ScheduledFor: time.Now(), StartedAt: time.Now().Add(1), FinishedAt: time.Now().Add(2)}, nil
 		},
 	}
+	mockBS := mock.NewBucketService()
 
-	svcStack := backend.NewAnalyticalStorage(zaptest.NewLogger(t), mockTS, mockTCS, ab.PointsWriter(), ab.QueryService())
+	svcStack := backend.NewAnalyticalStorage(zaptest.NewLogger(t), mockTS, mockBS, mockTCS, ab.PointsWriter(), ab.QueryService())
 
 	_, err := svcStack.FinishRun(context.Background(), 1, 2)
 	if err != nil {
@@ -117,14 +123,14 @@ func (ab *analyticalBackend) QueryService() query.QueryService {
 	return query.QueryServiceBridge{AsyncQueryService: ab.queryController}
 }
 
-func (lrw *analyticalBackend) Close(t *testing.T) {
-	if err := lrw.queryController.Shutdown(context.Background()); err != nil {
+func (ab *analyticalBackend) Close(t *testing.T) {
+	if err := ab.queryController.Shutdown(context.Background()); err != nil {
 		t.Error(err)
 	}
-	if err := lrw.storageEngine.Close(); err != nil {
+	if err := ab.storageEngine.Close(); err != nil {
 		t.Error(err)
 	}
-	if err := os.RemoveAll(lrw.rootDir); err != nil {
+	if err := os.RemoveAll(ab.rootDir); err != nil {
 		t.Error(err)
 	}
 }

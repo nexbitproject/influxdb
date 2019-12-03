@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/kit/prom/promtest"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/scheduler"
 	"go.uber.org/zap/zaptest"
 )
@@ -36,7 +38,7 @@ func taskExecutorSystem(t *testing.T) tes {
 
 	i := kv.NewService(inmem.NewKVStore())
 
-	ex, metrics := NewExecutor(zaptest.NewLogger(t), qs, i, i, i)
+	ex, metrics := NewExecutor(zaptest.NewLogger(t), qs, i, i, taskControlService{i})
 	return tes{
 		svc:     aqs,
 		ex:      ex,
@@ -55,6 +57,7 @@ func TestTaskExecutor(t *testing.T) {
 	t.Run("LimitFunc", testLimitFunc)
 	t.Run("Metrics", testMetrics)
 	t.Run("IteratorFailure", testIteratorFailure)
+	t.Run("ErrorHandling", testErrorHandling)
 }
 
 func testQuerySuccess(t *testing.T) {
@@ -91,6 +94,12 @@ func testQuerySuccess(t *testing.T) {
 	if got := promise.Error(); got != nil {
 		t.Fatal(got)
 	}
+	// confirm run is removed from in-mem store
+	run, err = tes.i.FindRunByID(context.Background(), task.ID, run.ID)
+	if run != nil || err == nil || !strings.Contains(err.Error(), "run not found") {
+		t.Fatal("run was returned when it should have been removed from kv")
+	}
+
 }
 
 func testQueryFailure(t *testing.T) {
@@ -264,7 +273,7 @@ func testLimitFunc(t *testing.T) {
 	tes.svc.FailNextQuery(forcedErr)
 
 	count := 0
-	tes.ex.SetLimitFunc(func(*influxdb.Run) error {
+	tes.ex.SetLimitFunc(func(*influxdb.Task, *influxdb.Run) error {
 		count++
 		if count < 2 {
 			return errors.New("not there yet")
@@ -336,7 +345,7 @@ func testMetrics(t *testing.T) {
 
 	mg = promtest.MustGather(t, reg)
 
-	m = promtest.MustFindMetric(t, mg, "task_executor_total_runs_complete", map[string]string{"status": "success"})
+	m = promtest.MustFindMetric(t, mg, "task_executor_total_runs_complete", map[string]string{"task_type": "", "status": "success"})
 	if got := *m.Counter.Value; got != 1 {
 		t.Fatalf("expected 1 active runs, got %v", got)
 	}
@@ -362,11 +371,14 @@ func testMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tes.ex.ManualRun(ctx, mt.ID, r.ID)
+	_, err = tes.ex.ManualRun(ctx, mt.ID, r.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	mg = promtest.MustGather(t, reg)
 
-	m = promtest.MustFindMetric(t, mg, "task_executor_manual_runs_counter", map[string]string{"taskID": string(mt.ID)})
+	m = promtest.MustFindMetric(t, mg, "task_executor_manual_runs_counter", map[string]string{"taskID": string(mt.ID.String())})
 	if got := *m.Counter.Value; got != 1 {
 		t.Fatalf("expected 1 manual run, got %v", got)
 	}
@@ -414,4 +426,65 @@ func testIteratorFailure(t *testing.T) {
 	if got := promise.Error(); got == nil {
 		t.Fatal("got no error when I should have")
 	}
+}
+
+func testErrorHandling(t *testing.T) {
+	t.Parallel()
+	tes := taskExecutorSystem(t)
+
+	metrics := tes.metrics
+	reg := prom.NewRegistry()
+	reg.MustRegister(metrics.PrometheusCollectors()...)
+
+	script := fmt.Sprintf(fmtTestScript, t.Name())
+	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script, Status: "active"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// encountering a bucket not found error should log an unrecoverable error in the metrics
+	forcedErr := errors.New("could not find bucket")
+	tes.svc.FailNextQuery(forcedErr)
+
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	<-promise.Done()
+
+	mg := promtest.MustGather(t, reg)
+
+	m := promtest.MustFindMetric(t, mg, "task_executor_unrecoverable_counter", map[string]string{"taskID": task.ID.String(), "errorType": "internal error"})
+	if got := *m.Counter.Value; got != 1 {
+		t.Fatalf("expected 1 unrecoverable error, got %v", got)
+	}
+
+	// TODO (al): once user notification system is put in place, this code should be uncommented
+	// encountering a bucket not found error should deactivate the task
+	/*
+		inactive, err := tes.i.FindTaskByID(context.Background(), task.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if inactive.Status != "inactive" {
+			t.Fatal("expected task to be deactivated after permanent error")
+		}
+	*/
+}
+
+type taskControlService struct {
+	backend.TaskControlService
+}
+
+func (t taskControlService) FinishRun(ctx context.Context, taskID influxdb.ID, runID influxdb.ID) (*influxdb.Run, error) {
+	// ensure auth set on context
+	_, err := icontext.GetAuthorizer(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	return t.TaskControlService.FinishRun(ctx, taskID, runID)
 }

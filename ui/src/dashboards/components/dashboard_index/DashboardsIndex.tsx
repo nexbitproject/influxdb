@@ -76,12 +76,15 @@ class DashboardIndex extends PureComponent<Props, State> {
     const {searchTerm} = this.state
     return (
       <>
-        <Page titleTag={pageTitleSuffixer(['Dashboards'])}>
+        <Page
+          testID="empty-dashboards-list"
+          titleTag={pageTitleSuffixer(['Dashboards'])}
+        >
           <Page.Header fullWidth={false}>
-            <Page.Header.Left>
+            <Page.HeaderLeft>
               <PageTitleWithOrg title="Dashboards" />
-            </Page.Header.Left>
-            <Page.Header.Right>
+            </Page.HeaderLeft>
+            <Page.HeaderRight>
               <AddResourceDropdown
                 onSelectNew={createDashboard}
                 onSelectImport={this.summonImportOverlay}
@@ -90,34 +93,34 @@ class DashboardIndex extends PureComponent<Props, State> {
                 canImportFromTemplate={true}
                 status={this.addResourceStatus}
               />
-            </Page.Header.Right>
+            </Page.HeaderRight>
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
-            <GetResources resource={ResourceType.Dashboards}>
-              <GetResources resource={ResourceType.Labels}>
-                <GetAssetLimits>
-                  <AssetLimitAlert
-                    resourceName="dashboards"
-                    limitStatus={limitStatus}
-                  />
-                  <DashboardsIndexContents
-                    filterComponent={
-                      <SearchWidget
-                        placeholderText="Filter dashboards..."
-                        onSearch={this.handleFilterDashboards}
-                        searchTerm={searchTerm}
-                      />
-                    }
-                    onDeleteDashboard={handleDeleteDashboard}
-                    onCreateDashboard={createDashboard}
-                    onCloneDashboard={cloneDashboard}
-                    onUpdateDashboard={handleUpdateDashboard}
-                    searchTerm={searchTerm}
-                    onFilterChange={this.handleFilterDashboards}
-                    onImportDashboard={this.summonImportOverlay}
-                  />
-                </GetAssetLimits>
-              </GetResources>
+            <GetResources
+              resources={[ResourceType.Dashboards, ResourceType.Labels]}
+            >
+              <GetAssetLimits>
+                <AssetLimitAlert
+                  resourceName="dashboards"
+                  limitStatus={limitStatus}
+                />
+                <DashboardsIndexContents
+                  filterComponent={
+                    <SearchWidget
+                      placeholderText="Filter dashboards..."
+                      onSearch={this.handleFilterDashboards}
+                      searchTerm={searchTerm}
+                    />
+                  }
+                  onDeleteDashboard={handleDeleteDashboard}
+                  onCreateDashboard={createDashboard}
+                  onCloneDashboard={cloneDashboard}
+                  onUpdateDashboard={handleUpdateDashboard}
+                  searchTerm={searchTerm}
+                  onFilterChange={this.handleFilterDashboards}
+                  onImportDashboard={this.summonImportOverlay}
+                />
+              </GetAssetLimits>
             </GetResources>
           </Page.Contents>
         </Page>

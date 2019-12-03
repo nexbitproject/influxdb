@@ -7,11 +7,12 @@ import {Provider} from 'react-redux'
 import {Router, Route, useRouterHistory, IndexRoute} from 'react-router'
 import {createHistory, History} from 'history'
 
+import {CLOUD} from 'src/shared/constants'
 import configureStore from 'src/store/configureStore'
 import {loadLocalStorage} from 'src/localStorage'
 
 import {getRootNode} from 'src/utils/nodes'
-import {getBasepath} from 'src/utils/basepath'
+import {getBrowserBasepath} from 'src/utils/basepath'
 
 // Components
 import App from 'src/App'
@@ -41,7 +42,6 @@ import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
 import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
 import EditVEO from 'src/dashboards/components/EditVEO'
 import NewVEO from 'src/dashboards/components/NewVEO'
-import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 import BucketsIndex from 'src/buckets/containers/BucketsIndex'
 import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
@@ -66,20 +66,16 @@ import TokensIndex from 'src/authorizations/containers/TokensIndex'
 import MembersIndex from 'src/members/containers/MembersIndex'
 import LabelsIndex from 'src/labels/containers/LabelsIndex'
 import TemplateViewOverlay from 'src/templates/components/TemplateViewOverlay'
-import TelegrafConfigOverlay from 'src/telegrafs/components/TelegrafConfigOverlay'
 import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
-import AddMembersOverlay from 'src/members/components/AddMembersOverlay'
 import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
 import RenameOrgOverlay from 'src/organizations/components/RenameOrgOverlay'
 import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
 import RenameBucketOverlay from 'src/buckets/components/RenameBucketOverlay'
 import RenameVariableOverlay from 'src/variables/components/RenameVariableOverlay'
 import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverlay'
-import AllAccessTokenOverlay from 'src/authorizations/components/AllAccessTokenOverlay'
-import BucketsTokenOverlay from 'src/authorizations/components/BucketsTokenOverlay'
-import TaskImportFromTemplateOverlay from './tasks/components/TaskImportFromTemplateOverlay'
+import TaskImportFromTemplateOverlay from 'src/tasks/components/TaskImportFromTemplateOverlay'
 import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateViewOverlay'
 import AlertingIndex from 'src/alerting/components/AlertingIndex'
 import AlertHistoryIndex from 'src/alerting/components/AlertHistoryIndex'
@@ -93,7 +89,48 @@ import EditRuleOverlay from 'src/alerting/components/notifications/EditRuleOverl
 import NewEndpointOverlay from 'src/alerting/components/endpoints/NewEndpointOverlay'
 import EditEndpointOverlay from 'src/alerting/components/endpoints/EditEndpointOverlay'
 
-import {FeatureFlag} from 'src/shared/utils/featureFlag'
+// Overlays
+import OverlayHandler, {
+  RouteOverlay,
+} from 'src/overlays/components/RouteOverlay'
+const AddNoteOverlay = RouteOverlay(OverlayHandler, 'add-note', router => {
+  router.push(
+    `/orgs/${router.params.orgID}/dashboards/${router.params.dashboardID}`
+  )
+})
+const EditNoteOverlay = RouteOverlay(OverlayHandler, 'edit-note', router => {
+  router.push(
+    `/orgs/${router.params.orgID}/dashboards/${router.params.dashboardID}`
+  )
+})
+const AllAccessTokenOverlay = RouteOverlay(
+  OverlayHandler,
+  'add-master-token',
+  router => {
+    router.push(`/orgs/${router.params.orgID}/load-data/tokens`)
+  }
+)
+const BucketsTokenOverlay = RouteOverlay(
+  OverlayHandler,
+  'add-token',
+  router => {
+    router.push(`/orgs/${router.params.orgID}/load-data/tokens`)
+  }
+)
+const TelegrafConfigOverlay = RouteOverlay(
+  OverlayHandler,
+  'telegraf-config',
+  router => {
+    router.push(`/orgs/${router.params.orgID}/load-data/telegrafs`)
+  }
+)
+const TelegrafOutputOverlay = RouteOverlay(
+  OverlayHandler,
+  'telegraf-output',
+  router => {
+    router.push(`/orgs/${router.params.orgID}/load-data/telegrafs`)
+  }
+)
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -103,7 +140,7 @@ import 'src/style/chronograf.scss'
 import '@influxdata/clockface/dist/index.css'
 
 const rootNode = getRootNode()
-const basepath = getBasepath()
+const basepath = getBrowserBasepath()
 
 declare global {
   interface Window {
@@ -120,6 +157,10 @@ const history: History = useRouterHistory(createHistory)({
 
 export const store = configureStore(loadLocalStorage(), history)
 const {dispatch} = store
+
+if (window['Cypress']) {
+  window['store'] = store
+}
 
 history.listen(() => {
   dispatch(disablePresentationMode())
@@ -213,10 +254,10 @@ class Root extends PureComponent {
                               <Route path=":cellID/edit" component={EditVEO} />
                             </Route>
                             <Route path="notes">
-                              <Route path="new" component={NoteEditorOverlay} />
+                              <Route path="new" component={AddNoteOverlay} />
                               <Route
                                 path=":cellID/edit"
-                                component={NoteEditorOverlay}
+                                component={EditNoteOverlay}
                               />
                             </Route>
                           </Route>
@@ -272,6 +313,10 @@ class Root extends PureComponent {
                                 path=":id/instructions"
                                 component={TelegrafInstructionsOverlay}
                               />
+                              <Route
+                                path="output"
+                                component={TelegrafOutputOverlay}
+                              />
                               <Route path="new" component={CollectorsWizard} />
                             </Route>
                             <Route path="scrapers" component={ScrapersIndex}>
@@ -280,36 +325,42 @@ class Root extends PureComponent {
                                 component={CreateScraperOverlay}
                               />
                             </Route>
-                            <FeatureFlag name="clientLibrariesPage">
+                            <Route
+                              path="client-libraries"
+                              component={ClientLibrariesPage}
+                            >
                               <Route
-                                path="client-libraries"
-                                component={ClientLibrariesPage}
-                              >
-                                <Route
-                                  path="csharp"
-                                  component={ClientCSharpOverlay}
-                                />
-                                <Route path="go" component={ClientGoOverlay} />
-                                <Route
-                                  path="java"
-                                  component={ClientJavaOverlay}
-                                />
-                                <Route
-                                  path="javascript-node"
-                                  component={ClientJSOverlay}
-                                />
-                                <Route
-                                  path="python"
-                                  component={ClientPythonOverlay}
-                                />
-                              </Route>
-                            </FeatureFlag>
+                                path="csharp"
+                                component={ClientCSharpOverlay}
+                              />
+                              <Route path="go" component={ClientGoOverlay} />
+                              <Route
+                                path="java"
+                                component={ClientJavaOverlay}
+                              />
+                              <Route
+                                path="javascript-node"
+                                component={ClientJSOverlay}
+                              />
+                              <Route
+                                path="python"
+                                component={ClientPythonOverlay}
+                              />
+                            </Route>
                           </Route>
                           <Route path="settings">
-                            <IndexRoute component={MembersIndex} />
-                            <Route path="members" component={MembersIndex}>
-                              <Route path="new" component={AddMembersOverlay} />
-                            </Route>
+                            {CLOUD ? (
+                              <IndexRoute component={VariablesIndex} />
+                            ) : (
+                              <>
+                                <IndexRoute component={MembersIndex} />
+                                <Route
+                                  path="members"
+                                  component={MembersIndex}
+                                />
+                              </>
+                            )}
+
                             <Route path="templates" component={TemplatesIndex}>
                               <Route
                                 path="import"
@@ -358,42 +409,40 @@ class Root extends PureComponent {
                               />
                             </Route>
                           </Route>
-                          <FeatureFlag name="alerting">
-                            <Route path="alerting" component={AlertingIndex}>
-                              <Route
-                                path="checks/new-threshold"
-                                component={NewThresholdCheckEO}
-                              />
-                              <Route
-                                path="checks/new-deadman"
-                                component={NewDeadmanCheckEO}
-                              />
-                              <Route
-                                path="checks/:checkID/edit"
-                                component={EditCheckEO}
-                              />
-                              <Route
-                                path="rules/new"
-                                component={NewRuleOverlay}
-                              />
-                              <Route
-                                path="rules/:ruleID/edit"
-                                component={EditRuleOverlay}
-                              />
-                              <Route
-                                path="endpoints/new"
-                                component={NewEndpointOverlay}
-                              />
-                              <Route
-                                path="endpoints/:endpointID/edit"
-                                component={EditEndpointOverlay}
-                              />
-                            </Route>
+                          <Route path="alerting" component={AlertingIndex}>
                             <Route
-                              path="alert-history"
-                              component={AlertHistoryIndex}
+                              path="checks/new-threshold"
+                              component={NewThresholdCheckEO}
                             />
-                          </FeatureFlag>
+                            <Route
+                              path="checks/new-deadman"
+                              component={NewDeadmanCheckEO}
+                            />
+                            <Route
+                              path="checks/:checkID/edit"
+                              component={EditCheckEO}
+                            />
+                            <Route
+                              path="rules/new"
+                              component={NewRuleOverlay}
+                            />
+                            <Route
+                              path="rules/:ruleID/edit"
+                              component={EditRuleOverlay}
+                            />
+                            <Route
+                              path="endpoints/new"
+                              component={NewEndpointOverlay}
+                            />
+                            <Route
+                              path="endpoints/:endpointID/edit"
+                              component={EditEndpointOverlay}
+                            />
+                          </Route>
+                          <Route
+                            path="alert-history"
+                            component={AlertHistoryIndex}
+                          />
                         </Route>
                       </Route>
                     </Route>

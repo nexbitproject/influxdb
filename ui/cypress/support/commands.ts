@@ -53,6 +53,35 @@ export const createCell = (
   })
 }
 
+export const createView = (
+  dbID: string,
+  cellID: string
+): Cypress.Chainable<Cypress.Response> => {
+  return cy.fixture('view').then(view => {
+    return cy.request({
+      method: 'PATCH',
+      url: `/api/v2/dashboards/${dbID}/cells/${cellID}/view`,
+      body: view,
+    })
+  })
+}
+
+export const createDashWithCell = (
+  orgID: string
+): Cypress.Chainable<Cypress.Response> =>
+  createDashboard(orgID).then(({body: dashboard}) => createCell(dashboard.id))
+
+export const createDashWithViewAndVar = (
+  orgID: string
+): Cypress.Chainable<Cypress.Response> => {
+  createMapVariable(orgID)
+  return createDashboard(orgID).then(({body: dashboard}) =>
+    createCell(dashboard.id).then(({body: cell}) =>
+      createView(dashboard.id, cell.id)
+    )
+  )
+}
+
 export const createDashboardTemplate = (
   orgID?: string,
   name: string = 'Bashboard'
@@ -157,6 +186,25 @@ export const createVariable = (
   })
 }
 
+export const createMapVariable = (
+  orgID?: string
+): Cypress.Chainable<Cypress.Response> => {
+  const argumentsObj = {
+    type: 'map',
+    values: {k1: 'v1', k2: 'v2'},
+  }
+
+  return cy.request({
+    method: 'POST',
+    url: '/api/v2/variables',
+    body: {
+      name: 'mapTypeVar',
+      orgID,
+      arguments: argumentsObj,
+    },
+  })
+}
+
 export const createLabel = (
   name?: string,
   orgID?: string,
@@ -250,7 +298,8 @@ export const createScraper = (
 export const createTelegraf = (
   name?: string,
   description?: string,
-  orgID?: string
+  orgID?: string,
+  bucket?: string
 ): Cypress.Chainable<Cypress.Response> => {
   return cy.request({
     method: 'POST',
@@ -259,7 +308,19 @@ export const createTelegraf = (
       name,
       description,
       agent: {collectionInterval: 10000},
-      plugins: [],
+      plugins: [
+        {
+          name: 'influxdb_v2',
+          type: 'output',
+          comment: 'string',
+          config: {
+            urls: ['string'],
+            token: 'string',
+            organization: 'string',
+            bucket,
+          },
+        },
+      ],
       orgID,
     },
   })
@@ -329,6 +390,10 @@ export const getByInputName = (name: string): Cypress.Chainable => {
   return cy.get(`input[name=${name}]`)
 }
 
+export const getByInputValue = (value: string): Cypress.Chainable => {
+  return cy.get(`input[value='${value}']`)
+}
+
 export const getByTitle = (name: string): Cypress.Chainable => {
   return cy.get(`[title="${name}"]`)
 }
@@ -357,6 +422,7 @@ export const createEndpoint = (
   return cy.request('POST', 'api/v2/notificationEndpoints', endpoint)
 }
 
+/* eslint-disable */
 // notification endpoints
 Cypress.Commands.add('createEndpoint', createEndpoint)
 
@@ -366,6 +432,7 @@ Cypress.Commands.add('fluxEqual', fluxEqual)
 // getters
 Cypress.Commands.add('getByTestID', getByTestID)
 Cypress.Commands.add('getByInputName', getByInputName)
+Cypress.Commands.add('getByInputValue', getByInputValue)
 Cypress.Commands.add('getByTitle', getByTitle)
 Cypress.Commands.add('getByTestIDSubStr', getByTestIDSubStr)
 
@@ -379,6 +446,8 @@ Cypress.Commands.add('setupUser', setupUser)
 Cypress.Commands.add('createDashboard', createDashboard)
 Cypress.Commands.add('createDashboardTemplate', createDashboardTemplate)
 Cypress.Commands.add('createCell', createCell)
+Cypress.Commands.add('createDashWithCell', createDashWithCell)
+Cypress.Commands.add('createDashWithViewAndVar', createDashWithViewAndVar)
 
 // orgs
 Cypress.Commands.add('createOrg', createOrg)
@@ -403,6 +472,7 @@ Cypress.Commands.add('createToken', createToken)
 
 // variables
 Cypress.Commands.add('createVariable', createVariable)
+Cypress.Commands.add('createMapVariable', createMapVariable)
 
 // labels
 Cypress.Commands.add('createLabel', createLabel)
@@ -410,3 +480,4 @@ Cypress.Commands.add('createAndAddLabel', createAndAddLabel)
 
 // test
 Cypress.Commands.add('writeData', writeData)
+/* eslint-enable */

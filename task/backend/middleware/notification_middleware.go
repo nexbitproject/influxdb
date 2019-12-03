@@ -34,7 +34,7 @@ func NewNotificationRuleStore(ns influxdb.NotificationRuleStore, ts influxdb.Tas
 }
 
 // CreateNotificationRule Creates a notification and Publishes the change it can be scheduled.
-func (ns *CoordinatingNotificationRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRule, userID influxdb.ID) error {
+func (ns *CoordinatingNotificationRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
 
 	if err := ns.NotificationRuleStore.CreateNotificationRule(ctx, nr, userID); err != nil {
 		return err
@@ -57,7 +57,7 @@ func (ns *CoordinatingNotificationRuleStore) CreateNotificationRule(ctx context.
 }
 
 // UpdateNotificationRule Updates a notification and publishes the change so the task owner can act on the update
-func (ns *CoordinatingNotificationRuleStore) UpdateNotificationRule(ctx context.Context, id influxdb.ID, nr influxdb.NotificationRule, uid influxdb.ID) (influxdb.NotificationRule, error) {
+func (ns *CoordinatingNotificationRuleStore) UpdateNotificationRule(ctx context.Context, id influxdb.ID, nr influxdb.NotificationRuleCreate, uid influxdb.ID) (influxdb.NotificationRule, error) {
 	from, err := ns.NotificationRuleStore.FindNotificationRuleByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -80,7 +80,7 @@ func (ns *CoordinatingNotificationRuleStore) UpdateNotificationRule(ctx context.
 	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
 	// this allows us to see not run the task for inactive time
 	if fromTask.Status == string(backend.TaskInactive) && toTask.Status == string(backend.TaskActive) {
-		toTask.LatestCompleted = ns.Now().Format(time.RFC3339)
+		toTask.LatestCompleted = ns.Now()
 	}
 
 	return to, ns.coordinator.TaskUpdated(ctx, fromTask, toTask)
@@ -111,7 +111,7 @@ func (ns *CoordinatingNotificationRuleStore) PatchNotificationRule(ctx context.C
 	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
 	// this allows us to see not run the task for inactive time
 	if fromTask.Status == string(backend.TaskInactive) && toTask.Status == string(backend.TaskActive) {
-		toTask.LatestCompleted = ns.Now().Format(time.RFC3339)
+		toTask.LatestCompleted = ns.Now()
 	}
 
 	return to, ns.coordinator.TaskUpdated(ctx, fromTask, toTask)

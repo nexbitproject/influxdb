@@ -46,6 +46,7 @@ export default class extends PureComponent<Props> {
             value={lineProtocolBody}
             placeholder="Write text here"
             onChange={this.handleTextChange}
+            testID="line-protocol--text-area"
           />
         )
       case LineProtocolTab.EnterURL:
@@ -80,7 +81,7 @@ export default class extends PureComponent<Props> {
     this.props.onURLChange(value)
   }
 
-  private handleTextChange = async (e: ChangeEvent<HTMLTextAreaElement>) => {
+  private handleTextChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const {setLineProtocolBody} = this.props
     setLineProtocolBody(e.target.value)
   }

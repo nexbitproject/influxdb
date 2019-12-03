@@ -18,16 +18,16 @@ describe('labels', () => {
 
   function hex2BgColor(hex: string): string {
     hex = hex.replace('#', '')
-    let subvals = hex.match(/.{1,2}/g) as string[]
-    let red: number = parseInt(subvals[0], 16)
-    let green: number = parseInt(subvals[1], 16)
-    let blue: number = parseInt(subvals[2], 16)
-    //background-color: rgb(50, 107, 186);
+    const subvals = hex.match(/.{1,2}/g) as string[]
+    const red: number = parseInt(subvals[0], 16)
+    const green: number = parseInt(subvals[1], 16)
+    const blue: number = parseInt(subvals[2], 16)
+    // background-color: rgb(50, 107, 186);
 
     return `background-color: rgb(${red}, ${green}, ${blue});`
   }
 
-  it('Can create a label', () => {
+  it('can create a label', () => {
     const newLabelName = 'Substantia (サブスタンス)'
     const newLabelDescription =
       '(\u03943) quod in se est et per se concipitur hoc est id cujus conceptus non indiget conceptu alterius rei a quo formari debeat. '
@@ -35,14 +35,14 @@ describe('labels', () => {
 
     cy.getByTestID('table-row').should('have.length', 0)
 
-    //open create - first button
+    // open create - first button
     cy.getByTestID('button-create-initial').click()
 
     cy.getByTestID('overlay--container').within(() => {
       cy.getByTestID('overlay--header')
         .contains('Create Label')
         .should('be.visible')
-      //dismiss
+      // dismiss
       cy.getByTestID('overlay--header')
         .children('button')
         .click()
@@ -50,26 +50,26 @@ describe('labels', () => {
 
     cy.getByTestID('overlay--container').should('not.be.visible')
 
-    //open create 2 - by standard button
+    // open create 2 - by standard button
     cy.getByTestID('button-create').click()
     cy.getByTestID('overlay--container').should('be.visible')
 
-    //cancel
+    // cancel
     cy.getByTestID('create-label-form--cancel').click()
     cy.getByTestID('overlay--container').should('not.be.visible')
     cy.getByTestID('label-card').should('have.length', 0)
 
-    //open create - and proceed with overlay
+    // open create - and proceed with overlay
     cy.getByTestID('button-create-initial').click()
 
-    //Try to save without name (required field) todo - issue 13940
-    //cy.getByTestID('create-label-form--submit').click()
+    // Try to save without name (required field) todo - issue 13940
+    // cy.getByTestID('create-label-form--submit').click()
 
-    //enter name
+    // enter name
     cy.getByTestID('create-label-form--name').type(newLabelName)
-    //enter description
+    // enter description
     cy.getByTestID('create-label-form--description').type(newLabelDescription)
-    //select color
+    // select color
     cy.getByTestID('color-picker--input')
       .invoke('attr', 'value')
       .should('contain', '#326BBA')
@@ -101,27 +101,21 @@ describe('labels', () => {
       .invoke('attr', 'style')
       .should('equal', 'background-color: rgb(255, 210, 85);')
 
-    //clear color select
+    // clear color select
     cy.getByTestID('color-picker--input').clear()
     cy.getByTestID('form--element-error').should(
       'contain',
-      'Hexcodes must begin with #, and must be 7 characters'
+      'Please enter a hexcode'
     )
-    cy.getByTestID('input-error').should($ie => {
-      expect($ie).to.have.class('alert-triangle')
-    })
 
-    //Type nonsense string - color input
+    // Type nonsense string - color input
     cy.getByTestID('color-picker--input').type('zzzzzz')
     cy.getByTestID('form--element-error').should(
       'contain',
-      'Hexcodes must begin with #, and must be 7 characters'
+      'Please enter a hexcode'
     )
-    cy.getByTestID('input-error').should($ie => {
-      expect($ie).to.have.class('alert-triangle')
-    })
 
-    //feel lucky
+    // feel lucky
     cy.getByTestID('color-picker--randomize').click()
     cy.getByTestID('color-picker--input')
       .invoke('val')
@@ -133,7 +127,7 @@ describe('labels', () => {
           .invoke('attr', 'style')
           .should('equal', hex2BgColor(hex))
       })
-    //enter color
+    // enter color
     cy.getByTestID('color-picker--input').clear()
     cy.getByTestID('color-picker--input').type(newLabelColor)
     cy.getByTestID('color-picker--input')
@@ -147,10 +141,10 @@ describe('labels', () => {
           .should('equal', hex2BgColor(newLabelColor))
       })
 
-    //save
+    // save
     cy.getByTestID('create-label-form--submit').click()
 
-    //verify name, descr, color
+    // verify name, descr, color
     cy.getByTestID('label-card').should('have.length', 1)
     cy.getByTestID('label-card')
       .contains(newLabelName)
@@ -249,38 +243,8 @@ describe('labels', () => {
       .should('contain', hex2BgColor(newLabelColor))
   })
 
-  it('can delete a label', () => {
-    const labelName = 'Modus (目录)'
-    const labelDescription =
-      '(\u03945) Per modum intelligo substantiae affectiones sive id quod in alio est, per quod etiam concipitur.'
-    const labelColor = '#88AACC'
-
-    //Create labels
-    cy.get<Organization>('@org').then(({id}) => {
-      cy.createLabel(labelName, id, {
-        description: labelDescription,
-        color: labelColor,
-      })
-      cy.createLabel(labelName, id, {
-        description: labelDescription,
-        color: '#CCAA88',
-      })
-    })
-
-    cy.getByTestID('label-card').should('have.length', 2)
-
-    cy.getByTestID('context-delete-menu')
-      .eq(0)
-      .click({force: true})
-    cy.getByTestID('context-delete-label')
-      .eq(0)
-      .click({force: true})
-
-    cy.getByTestID('label-card').should('have.length', 1)
-  })
-
   it('can sort labels by name', () => {
-    //Create labels
+    // Create labels
     let names: {name: string; description: string; color: string}[] = [
       {name: 'Baboon', description: 'Savanah primate', color: '#FFAA88'},
       {name: 'Chimpanzee', description: 'Pan the forest ape', color: '#445511'},
@@ -298,15 +262,15 @@ describe('labels', () => {
 
     cy.reload()
 
-    //set sort of local names
+    // set sort of local names
     names = names.sort((a, b) =>
       // eslint-disable-next-line
       a.name < b.name ? -1 : a.name > b.name ? 1 : 0
     )
 
-    //Check initial sort asc
+    // check initial sort asc
     cy.getByTestIDSubStr('label--pill').then(labels => {
-      for (var i = 0; i < labels.length; i++) {
+      for (let i = 0; i < labels.length; i++) {
         cy.getByTestIDSubStr('label--pill')
           .eq(i)
           .should('have.text', names[i].name)
@@ -315,20 +279,20 @@ describe('labels', () => {
 
     cy.getByTestID('sorter--name').click()
 
-    //check sort desc
+    // check sort desc
     cy.getByTestIDSubStr('label--pill').then(labels => {
-      for (var i = 0; i < labels.length; i++) {
+      for (let i = 0; i < labels.length; i++) {
         cy.getByTestIDSubStr('label--pill')
           .eq(i)
           .should('have.text', names[labels.length - (i + 1)].name)
       }
     })
 
-    //reset to asc
+    // reset to asc
     cy.getByTestID('sorter--name').click()
 
     cy.getByTestIDSubStr('label--pill').then(labels => {
-      for (var i = 0; i < labels.length; i++) {
+      for (let i = 0; i < labels.length; i++) {
         cy.getByTestIDSubStr('label--pill')
           .eq(i)
           .should('have.text', names[i].name)
@@ -336,11 +300,146 @@ describe('labels', () => {
     })
   })
 
-  it.skip('can sort labels by description', () => {
-    //waiting on issue 13950
+  it('can sort labels by description', () => {
+    // Create labels
+    let names: {name: string; description: string; color: string}[] = [
+      {name: 'Baboon', description: 'Savanah primate', color: '#FFAA88'},
+      {name: 'Chimpanzee', description: 'Pan the forest ape', color: '#445511'},
+      {name: 'Gorilla', description: 'Greatest ape', color: '#114455'},
+      {name: 'Orangutan', description: 'Asian ape', color: '#F96A2D'},
+      {name: 'Macaque', description: 'Universal monkey', color: '#AA8888'},
+      {name: 'Lemur', description: 'Madagascar primate', color: '#BBBBBB'},
+    ]
+
+    cy.get<Organization>('@org').then(({id}) => {
+      names.forEach(n => {
+        cy.createLabel(n.name, id, {description: n.description, color: n.color})
+      })
+    })
+
+    cy.reload()
+
+    // set sort of local descriptions
+    names = names.sort((a, b) =>
+      // eslint-disable-next-line
+      a.description < b.description ? -1 : a.description > b.description ? 1 : 0
+    )
+    // check sort asc
+    cy.getByTestID('sorter--desc').click()
+
+    cy.getByTestIDSubStr('resource-card').then(labels => {
+      for (let i = 0; i < labels.length; i++) {
+        cy.getByTestIDSubStr('resource-card')
+          .eq(i)
+          .should('have.text', 'Description: ' + names[i].description)
+      }
+    })
+
+    // check sort desc
+    cy.getByTestID('sorter--desc').click()
+
+    cy.getByTestIDSubStr('resource-card').then(labels => {
+      for (let i = 0; i < labels.length; i++) {
+        cy.getByTestIDSubStr('resource-card')
+          .eq(i)
+          .should(
+            'have.text',
+            'Description: ' + names[labels.length - (i + 1)].description
+          )
+      }
+    })
   })
 
-  it.skip('can filter labels', () => {
-    //waiting on issue 13930
+  it('can filter labels', () => {
+    // Create labels
+    const names: {name: string; description: string; color: string}[] = [
+      {
+        name: 'Chocolate bread',
+        description: 'chocolate filled flour product',
+        color: '#FFAA88',
+      },
+      {name: 'Pannini', description: 'Italian hot sandwich', color: '#445511'},
+      {
+        name: 'Crissonti',
+        description: 'French breakfast bread',
+        color: '#114455',
+      },
+      {name: 'ApfelKuchen', description: 'German apple cake', color: '#F96A2D'},
+      {name: 'Torta', description: 'Mexican sandwich', color: '#AA8888'},
+      {
+        name: 'Apfelstrudel',
+        description: 'German apple flaky pastry',
+        color: '#BBBBBB',
+      },
+    ]
+
+    cy.get<Organization>('@org').then(({id}) => {
+      names.forEach(n => {
+        cy.createLabel(n.name, id, {description: n.description, color: n.color})
+      })
+    })
+
+    cy.reload()
+
+    // input the search for titles check
+    cy.getByTestID('search-widget')
+      .clear()
+      .type('Apfel')
+
+    cy.getByTestID('label-card').should('have.length', 2)
+
+    // input the search for description check
+    cy.getByTestID('search-widget')
+      .clear()
+      .type('sandwich')
+
+    cy.getByTestID('label-card').should('have.length', 2)
+
+    // input the search for checking both name and description
+    cy.getByTestID('search-widget')
+      .clear()
+      .type('bread')
+
+    cy.getByTestID('label-card').should('have.length', 2)
+  })
+
+  describe.skip('label destruction', () => {
+    const labelName = 'Modus (目录)'
+    const labelDescription =
+      '(\u03945) Per modum intelligo substantiae affectiones sive id quod in alio est, per quod etiam concipitur.'
+    const labelColor = '#88AACC'
+
+    beforeEach(() => {
+      // Create labels
+      cy.get('@org').then(({id}: Organization) => {
+        cy.createLabel(labelName, id, {
+          description: labelDescription,
+          color: labelColor,
+        })
+        cy.createLabel(labelName, id, {
+          description: labelDescription,
+          color: '#CCAA88',
+        })
+      })
+    })
+
+    // Currently producing a false negative
+    it.skip('can delete a label', () => {
+      cy.server()
+      cy.route('DELETE', 'api/v2/labels/*').as('deleteLabels')
+
+      cy.getByTestID('label-card').should('have.length', 2)
+
+      cy.getByTestID('context-delete-menu')
+        .eq(0)
+        .click({force: true})
+      cy.getByTestID('context-delete-label')
+        .eq(0)
+        .click({force: true})
+
+      cy.wait('@deleteLabels')
+
+      cy.getByTestID('label-card').should('have.length', 1)
+    })
   })
 })

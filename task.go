@@ -20,29 +20,48 @@ const (
 
 	TaskStatusActive   = "active"
 	TaskStatusInactive = "inactive"
-
-	TaskTypeWildcard = "*"
 )
+
+var (
+	// TaskSystemType is the type set in tasks' for all crud requests
+	TaskSystemType = "system"
+)
+
+// TODO: these are temporary functions until we can work through optimizing auth
+// FindTaskWithAuth adds a auth hint for lookup of tasks
+func FindTaskWithoutAuth(ctx context.Context) context.Context {
+	return context.WithValue(ctx, "taskAuth", "omit")
+}
+
+// FindTaskAuthRequired retrieves the taskAuth hint
+func FindTaskAuthRequired(ctx context.Context) bool {
+	val, ok := ctx.Value("taskAuth").(string)
+	return !(ok && val == "omit")
+}
 
 // Task is a task. 🎊
 type Task struct {
-	ID              ID             `json:"id"`
-	Type            string         `json:"type,omitempty"`
-	OrganizationID  ID             `json:"orgID"`
-	Organization    string         `json:"org"`
-	AuthorizationID ID             `json:"-"`
-	Authorization   *Authorization `json:"-"`
-	OwnerID         ID             `json:"ownerID"`
-	Name            string         `json:"name"`
-	Description     string         `json:"description,omitempty"`
-	Status          string         `json:"status"`
-	Flux            string         `json:"flux"`
-	Every           string         `json:"every,omitempty"`
-	Cron            string         `json:"cron,omitempty"`
-	Offset          string         `json:"offset,omitempty"`
-	LatestCompleted string         `json:"latestCompleted,omitempty"`
-	CreatedAt       string         `json:"createdAt,omitempty"`
-	UpdatedAt       string         `json:"updatedAt,omitempty"`
+	ID              ID                     `json:"id"`
+	Type            string                 `json:"type,omitempty"`
+	OrganizationID  ID                     `json:"orgID"`
+	Organization    string                 `json:"org"`
+	AuthorizationID ID                     `json:"-"`
+	Authorization   *Authorization         `json:"-"`
+	OwnerID         ID                     `json:"ownerID"`
+	Name            string                 `json:"name"`
+	Description     string                 `json:"description,omitempty"`
+	Status          string                 `json:"status"`
+	Flux            string                 `json:"flux"`
+	Every           string                 `json:"every,omitempty"`
+	Cron            string                 `json:"cron,omitempty"`
+	Offset          time.Duration          `json:"offset,omitempty"`
+	LatestCompleted time.Time              `json:"latestCompleted,omitempty"`
+	LatestScheduled time.Time              `json:"latestScheduled,omitempty"`
+	LastRunStatus   string                 `json:"lastRunStatus,omitempty"`
+	LastRunError    string                 `json:"lastRunError,omitempty"`
+	CreatedAt       time.Time              `json:"createdAt,omitempty"`
+	UpdatedAt       time.Time              `json:"updatedAt,omitempty"`
+	Metadata        map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // EffectiveCron returns the effective cron string of the options.
@@ -60,31 +79,16 @@ func (t *Task) EffectiveCron() string {
 	return ""
 }
 
-// Run is a record created when a run of a task is scheduled.
+// Run is a record createId when a run of a task is scheduled.
 type Run struct {
-	ID           ID     `json:"id,omitempty"`
-	TaskID       ID     `json:"taskID"`
-	Status       string `json:"status"`
-	ScheduledFor string `json:"scheduledFor"`          // ScheduledFor is the time the task is scheduled to run at
-	StartedAt    string `json:"startedAt,omitempty"`   // StartedAt is the time the executor begins running the task
-	FinishedAt   string `json:"finishedAt,omitempty"`  // FinishedAt is the time the executor finishes running the task
-	RequestedAt  string `json:"requestedAt,omitempty"` // RequestedAt is the time the coordinator told the scheduler to schedule the task
-	Log          []Log  `json:"log,omitempty"`
-}
-
-// ScheduledForTime gives the time.Time that the run is scheduled for.
-func (r *Run) ScheduledForTime() (time.Time, error) {
-	return time.Parse(time.RFC3339, r.ScheduledFor)
-}
-
-// StartedAtTime gives the time.Time that the run was started.
-func (r *Run) StartedAtTime() (time.Time, error) {
-	return time.Parse(time.RFC3339Nano, r.StartedAt)
-}
-
-// RequestedAtTime gives the time.Time that the run was requested.
-func (r *Run) RequestedAtTime() (time.Time, error) {
-	return time.Parse(time.RFC3339, r.RequestedAt)
+	ID           ID        `json:"id,omitempty"`
+	TaskID       ID        `json:"taskID"`
+	Status       string    `json:"status"`
+	ScheduledFor time.Time `json:"scheduledFor"`          // ScheduledFor is the time the task is scheduled to run at
+	StartedAt    time.Time `json:"startedAt,omitempty"`   // StartedAt is the time the executor begins running the task
+	FinishedAt   time.Time `json:"finishedAt,omitempty"`  // FinishedAt is the time the executor finishes running the task
+	RequestedAt  time.Time `json:"requestedAt,omitempty"` // RequestedAt is the time the coordinator told the scheduler to schedule the task
+	Log          []Log     `json:"log,omitempty"`
 }
 
 // Log represents a link to a log resource
@@ -139,13 +143,14 @@ type TaskService interface {
 
 // TaskCreate is the set of values to create a task.
 type TaskCreate struct {
-	Type           string `json:"type,omitempty"`
-	Flux           string `json:"flux"`
-	Description    string `json:"description,omitempty"`
-	Status         string `json:"status,omitempty"`
-	OrganizationID ID     `json:"orgID,omitempty"`
-	Organization   string `json:"org,omitempty"`
-	OwnerID        ID     `json:"-"`
+	Type           string                 `json:"type,omitempty"`
+	Flux           string                 `json:"flux"`
+	Description    string                 `json:"description,omitempty"`
+	Status         string                 `json:"status,omitempty"`
+	OrganizationID ID                     `json:"orgID,omitempty"`
+	Organization   string                 `json:"org,omitempty"`
+	OwnerID        ID                     `json:"-"`
+	Metadata       map[string]interface{} `json:"-"` // not to be set through a web request but rather used by a http service using tasks backend.
 }
 
 func (t TaskCreate) Validate() error {
@@ -167,7 +172,11 @@ type TaskUpdate struct {
 	Description *string `json:"description,omitempty"`
 
 	// LatestCompleted us to set latest completed on startup to skip task catchup
-	LatestCompleted *string `json:"-"`
+	LatestCompleted *time.Time             `json:"-"`
+	LatestScheduled *time.Time             `json:"-"`
+	LastRunStatus   *string                `json:"-"`
+	LastRunError    *string                `json:"-"`
+	Metadata        map[string]interface{} `json:"-"` // not to be set through a web request but rather used by a http service using tasks backend.
 
 	// Options gets unmarshalled from json as if it was flat, with the same level as Flux and Status.
 	Options options.Options // when we unmarshal this gets unmarshalled from flat key-values
@@ -405,6 +414,7 @@ type TaskFilter struct {
 	Organization   string
 	User           *ID
 	Limit          int
+	Status         *string
 }
 
 // QueryParams Converts TaskFilter fields to url query params.

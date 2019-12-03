@@ -56,15 +56,13 @@ export default class CSVTemplateBuilder extends PureComponent<Props, State> {
             </p>
           </Grid.Column>
           <Grid.Column widthXS={Columns.Six}>
-            {
-              <Form.Element label="Select A Default">
-                <SelectDropdown
-                  options={values}
-                  selectedOption={this.defaultID}
-                  onSelect={onSelectDefault}
-                />
-              </Form.Element>
-            }
+            <Form.Element label="Select A Default">
+              <SelectDropdown
+                options={values}
+                selectedOption={this.defaultID}
+                onSelect={onSelectDefault}
+              />
+            </Form.Element>
           </Grid.Column>
         </Grid.Row>
       </Form.Element>
@@ -92,11 +90,11 @@ export default class CSVTemplateBuilder extends PureComponent<Props, State> {
     this.setState({csv})
   }
 
-  private getUniqueValuesFromCSV(csv: string) {
+  private getUniqueValuesFromCSV(csv: string): string[] {
     const parsedTVS = Papa.parse(csv)
     const templateValuesData: string[][] = _.get(parsedTVS, 'data', [[]])
 
-    const valueSet = new Set()
+    const valueSet: Set<string> = new Set()
     for (const row of templateValuesData) {
       for (const value of row) {
         const trimmedValue = trimAndRemoveQuotes(value)

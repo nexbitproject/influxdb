@@ -6,8 +6,7 @@ import {
   SMTPNotificationRuleBase,
   PagerDutyNotificationRuleBase,
   HTTPNotificationRuleBase,
-  NotificationRule,
-  CheckStatusLevel,
+  Label,
 } from 'src/client'
 
 type Omit<T, U> = Pick<T, Exclude<keyof T, U>>
@@ -22,16 +21,13 @@ export type StatusRuleDraft = WithClientID<StatusRule>
 
 export type TagRuleDraft = WithClientID<TagRule>
 
-// TODO: Spec this out in the OpenAPI spec instead. It should be whatever the
-// server accepts as the request body for a `POST /api/v2/notificationRules`
-export type NewNotificationRule = Omit<NotificationRule, 'id'>
-
 export type NotificationRuleBaseDraft = Overwrite<
   NotificationRuleBase,
   {
     id?: string
     statusRules: StatusRuleDraft[]
     tagRules: TagRuleDraft[]
+    labels?: Label[]
   }
 >
 
@@ -46,10 +42,17 @@ type SMTPRule = NotificationRuleBaseDraft & SMTPNotificationRuleBase
 type PagerDutyRule = NotificationRuleBaseDraft & PagerDutyNotificationRuleBase
 type HTTPRule = NotificationRuleBaseDraft & HTTPNotificationRuleBase
 
+export type LowercaseCheckStatusLevel =
+  | 'crit'
+  | 'warn'
+  | 'info'
+  | 'ok'
+  | 'unknown'
+
 // The data for a row in the status history table
 export interface StatusRow {
   time: number
-  level: CheckStatusLevel
+  level: LowercaseCheckStatusLevel
   checkID: string
   checkName: string
   message: string
@@ -58,7 +61,7 @@ export interface StatusRow {
 // The data for a row in the notification history table
 export interface NotificationRow {
   time: number
-  level: CheckStatusLevel
+  level: LowercaseCheckStatusLevel
   checkID: string
   checkName: string
   notificationRuleID: string
@@ -74,6 +77,7 @@ export {
   CheckBase,
   StatusRule,
   TagRule,
+  PostCheck,
   CheckStatusLevel,
   RuleStatusLevel,
   GreaterThreshold,
@@ -82,6 +86,7 @@ export {
   ThresholdCheck,
   DeadmanCheck,
   NotificationEndpoint,
+  PostNotificationEndpoint,
   NotificationRuleBase,
   NotificationRule,
   NotificationRuleUpdate,
@@ -98,6 +103,8 @@ export {
   SlackNotificationEndpoint,
   HTTPNotificationEndpoint,
   NotificationEndpointUpdate,
+  NotificationEndpointBase,
+  PostNotificationRule,
 } from '../client'
 
 import {Check, Threshold, HTTPNotificationEndpoint} from '../client'

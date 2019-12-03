@@ -9,6 +9,7 @@ import {
   ECTOPLASM,
   T_MAX_400_FILM,
 } from '@influxdata/giraffe'
+import {InfluxColors} from '@influxdata/clockface'
 
 import {AutoRefreshStatus} from 'src/types'
 
@@ -37,6 +38,8 @@ export const FIVE_SECONDS = 5000
 export const TEN_SECONDS = 10000
 export const INFINITE = -1
 
+export const HOMEPAGE_PATHNAME = 'me'
+
 // Resizer && Threesizer
 export const HANDLE_VERTICAL = 'vertical'
 export const HANDLE_HORIZONTAL = 'horizontal'
@@ -48,15 +51,17 @@ export const MIN_SIZE = 0
 
 export const VERSION = process.env.npm_package_version
 export const GIT_SHA = process.env.GIT_SHA
+export const BASE_PATH = process.env.STATIC_PREFIX
+export const API_BASE_PATH = process.env.API_PREFIX
 
-export const CLOUD = process.env.CLOUD && process.env.CLOUD === 'true'
+export const CLOUD = !!(process.env.CLOUD_URL && process.env.CLOUD_LOGOUT_URL)
 export const CLOUD_SIGNIN_PATHNAME = '/api/v2/signin'
 export const CLOUD_SIGNOUT_URL = process.env.CLOUD_LOGOUT_URL
-export const CLOUD_BILLING_VISIBLE =
-  CLOUD && process.env.CLOUD_BILLING_VISIBLE === 'true'
+export const CLOUD_BILLING_VISIBLE = CLOUD
 export const CLOUD_URL = process.env.CLOUD_URL
-export const CLOUD_CHECKOUT_PATH = process.env.CLOUD_CHECKOUT_PATH
-export const CLOUD_BILLING_PATH = process.env.CLOUD_BILLING_PATH
+export const CLOUD_CHECKOUT_PATH = '/checkout'
+export const CLOUD_BILLING_PATH = '/billing'
+export const CLOUD_USAGE_PATH = '/usage'
 
 export const FLUX_RESPONSE_BYTES_LIMIT = CLOUD
   ? 10 * 1024 * 1024 // 10 MiB
@@ -65,17 +70,17 @@ export const FLUX_RESPONSE_BYTES_LIMIT = CLOUD
 export const VIS_SIG_DIGITS = 4
 
 export const VIS_THEME: Partial<Config> = {
-  axisColor: '#31313d',
-  gridColor: '#31313d',
+  axisColor: InfluxColors.Onyx,
+  gridColor: InfluxColors.Onyx,
   gridOpacity: 1,
   tickFont: 'bold 10px Roboto',
-  tickFontColor: '#c6cad3',
+  tickFontColor: InfluxColors.Chromium,
   legendFont: '12px Roboto',
-  legendFontColor: '#8e91a1',
-  legendFontBrightColor: '#c6cad3',
-  legendBackgroundColor: '#1c1c21',
-  legendBorder: '1px solid #202028',
-  legendCrosshairColor: '#434453',
+  legendFontColor: InfluxColors.Wolf,
+  legendFontBrightColor: InfluxColors.Chromium,
+  legendBackgroundColor: InfluxColors.Raven,
+  legendBorder: `1px solid ${InfluxColors.Kevlar}`,
+  legendCrosshairColor: InfluxColors.Smoke,
 }
 
 export const GIRAFFE_COLOR_SCHEMES = [

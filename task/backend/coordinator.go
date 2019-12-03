@@ -28,13 +28,12 @@ type Coordinator interface {
 // each task it calls the provided coordinators task created method
 func NotifyCoordinatorOfExisting(ctx context.Context, ts TaskService, coord Coordinator, logger *zap.Logger) error {
 	// If we missed a Create Action
-	wildcard := influxdb.TaskTypeWildcard
-	tasks, _, err := ts.FindTasks(ctx, influxdb.TaskFilter{Type: &wildcard})
+	tasks, _, err := ts.FindTasks(ctx, influxdb.TaskFilter{})
 	if err != nil {
 		return err
 	}
 
-	latestCompleted := now().Format(time.RFC3339)
+	latestCompleted := now()
 	for len(tasks) > 0 {
 		for _, task := range tasks {
 			if task.Status != string(TaskActive) {
@@ -53,7 +52,56 @@ func NotifyCoordinatorOfExisting(ctx context.Context, ts TaskService, coord Coor
 		}
 
 		tasks, _, err = ts.FindTasks(ctx, influxdb.TaskFilter{
-			Type:  &wildcard,
+			After: &tasks[len(tasks)-1].ID,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+type TaskResumer func(ctx context.Context, id influxdb.ID, runID influxdb.ID) error
+
+// TaskNotifyCoordinatorOfExisting lists all tasks by the provided task service and for
+// each task it calls the provided coordinators task created method
+// TODO(docmerlin): this is temporary untill the executor queue is persistent
+func TaskNotifyCoordinatorOfExisting(ctx context.Context, ts TaskService, tcs TaskControlService, coord Coordinator, exec TaskResumer, logger *zap.Logger) error {
+	// If we missed a Create Action
+	tasks, _, err := ts.FindTasks(ctx, influxdb.TaskFilter{})
+	if err != nil {
+		return err
+	}
+
+	latestCompleted := now()
+	for len(tasks) > 0 {
+		for _, task := range tasks {
+			if task.Status != string(TaskActive) {
+				continue
+			}
+
+			task, err := ts.UpdateTask(context.Background(), task.ID, influxdb.TaskUpdate{
+				LatestCompleted: &latestCompleted,
+			})
+			if err != nil {
+				logger.Error("failed to set latestCompleted", zap.Error(err))
+				continue
+			}
+
+			coord.TaskCreated(ctx, task)
+			runs, err := tcs.CurrentlyRunning(ctx, task.ID)
+			if err != nil {
+				return err
+			}
+			for i := range runs {
+				if err := exec(ctx, runs[i].TaskID, runs[i].ID); err != nil {
+					return err
+				}
+			}
+		}
+
+		tasks, _, err = ts.FindTasks(ctx, influxdb.TaskFilter{
 			After: &tasks[len(tasks)-1].ID,
 		})
 		if err != nil {

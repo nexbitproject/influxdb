@@ -1,9 +1,10 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FunctionComponent, useRef, RefObject} from 'react'
 
 // Components
 import {
   SquareButton,
+  ButtonRef,
   ComponentColor,
   ComponentSize,
   ComponentStatus,
@@ -16,12 +17,13 @@ import {
 } from '@influxdata/clockface'
 
 interface Props {
-  onSave: () => Promise<void>
+  onSave: () => void
   status: ComponentStatus
   className: string
   checkType: string
   singleField: boolean
   singleAggregateFunc: boolean
+  oneOrMoreThresholds: boolean
 }
 
 const CheckEOSaveButton: FunctionComponent<Props> = ({
@@ -31,31 +33,44 @@ const CheckEOSaveButton: FunctionComponent<Props> = ({
   checkType,
   singleField,
   singleAggregateFunc,
+  oneOrMoreThresholds,
 }) => {
+  const triggerRef: RefObject<ButtonRef> = useRef(null)
+
   return (
-    <Popover
-      visible={status !== ComponentStatus.Default}
-      position={PopoverPosition.Below}
-      showEvent={PopoverInteraction.None}
-      hideEvent={PopoverInteraction.None}
-      color={ComponentColor.Secondary}
-      type={PopoverType.Outline}
-      contents={() => (
-        <div className="query-checklist--popover">
-          <p>{`To create a ${checkType} check, your query must include:`}</p>
-          <ul className="query-checklist--list">
-            <QueryChecklistItem text="One field" selected={singleField} />
-            {checkType === 'threshold' && (
-              <QueryChecklistItem
-                text="One aggregate function"
-                selected={singleAggregateFunc}
-              />
-            )}
-          </ul>
-        </div>
-      )}
-    >
+    <>
+      <Popover
+        triggerRef={triggerRef}
+        visible={status !== ComponentStatus.Default}
+        position={PopoverPosition.Below}
+        enableDefaultStyles={false}
+        showEvent={PopoverInteraction.None}
+        hideEvent={PopoverInteraction.None}
+        color={ComponentColor.Secondary}
+        type={PopoverType.Outline}
+        contents={() => (
+          <div className="query-checklist--popover">
+            <p>{`To create a ${checkType} check, you must select:`}</p>
+            <ul className="query-checklist--list">
+              <QueryChecklistItem text="One field" selected={singleField} />
+              {checkType === 'threshold' && (
+                <>
+                  <QueryChecklistItem
+                    text="One aggregate function"
+                    selected={singleAggregateFunc}
+                  />
+                  <QueryChecklistItem
+                    text="One or more thresholds"
+                    selected={oneOrMoreThresholds}
+                  />
+                </>
+              )}
+            </ul>
+          </div>
+        )}
+      />
       <SquareButton
+        ref={triggerRef}
         className={className}
         icon={IconFont.Checkmark}
         color={ComponentColor.Success}
@@ -64,7 +79,7 @@ const CheckEOSaveButton: FunctionComponent<Props> = ({
         onClick={onSave}
         testID="save-cell--button"
       />
-    </Popover>
+    </>
   )
 }
 

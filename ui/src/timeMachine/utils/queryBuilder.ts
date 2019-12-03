@@ -1,5 +1,5 @@
 import {get, isEmpty} from 'lodash'
-import {BuilderConfig, DashboardDraftQuery} from 'src/types'
+import {BuilderConfig, DashboardDraftQuery, Check} from 'src/types'
 import {FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
 import {
   TIME_RANGE_START,
@@ -12,12 +12,22 @@ import {BuilderTagsType} from '@influxdata/influx'
 
 export function isConfigValid(builderConfig: BuilderConfig): boolean {
   const {buckets, tags} = builderConfig
+
   const isConfigValid =
     buckets.length >= 1 &&
     tags.length >= 1 &&
     tags.some(({key, values}) => key && values.length > 0)
 
   return isConfigValid
+}
+
+export const isConfigEmpty = (builderConfig: BuilderConfig): boolean => {
+  const {buckets, tags} = builderConfig
+  const isConfigEmpty =
+    buckets.length <= 1 &&
+    !tags.some(({key, values}) => key && values.length > 0)
+
+  return isConfigEmpty
 }
 
 export interface CheckQueryValidity {
@@ -48,7 +58,7 @@ export const isDraftQueryAlertable = (
 
 export const isCheckSaveable = (
   draftQueries: DashboardDraftQuery[],
-  checkType: string
+  check: Partial<Check>
 ): boolean => {
   const {
     oneQuery,
@@ -57,11 +67,18 @@ export const isCheckSaveable = (
     singleField,
   } = isDraftQueryAlertable(draftQueries)
 
-  if (checkType === 'deadman') {
+  if (check.type === 'deadman') {
     return oneQuery && builderMode && singleField
   }
 
-  return oneQuery && builderMode && singleAggregateFunc && singleField
+  return (
+    oneQuery &&
+    builderMode &&
+    singleAggregateFunc &&
+    singleField &&
+    check.thresholds &&
+    !!check.thresholds.length
+  )
 }
 
 export function buildQuery(builderConfig: BuilderConfig): string {
@@ -133,12 +150,35 @@ function formatTagFilterCall(tagsSelections: BuilderConfig['tags']) {
   return `\n  ${calls}`
 }
 
+export enum ConfirmationState {
+  NotRequired = 'no confirmation required',
+  Required = 'confirmation required',
+  Unknown = 'unknown confirmation state',
+}
+
+export const confirmationState = (
+  query: string,
+  builderConfig: BuilderConfig
+) => {
+  if (
+    !isConfigValid(builderConfig) ||
+    !hasQueryBeenEdited(query, builderConfig)
+  ) {
+    ConfirmationState.NotRequired
+  }
+
+  if (hasQueryBeenEdited(query, builderConfig) || isEmpty(query)) {
+    return ConfirmationState.Required
+  }
+
+  return ConfirmationState.NotRequired
+}
+
 export function hasQueryBeenEdited(
   query: string,
   builderConfig: BuilderConfig
 ): boolean {
-  const emptyQueryChanged = !isConfigValid(builderConfig) && !isEmpty(query)
-  const existingQueryChanged = query !== buildQuery(builderConfig)
+  const _isQueryDifferent = query !== buildQuery(builderConfig)
 
-  return emptyQueryChanged || existingQueryChanged
+  return _isQueryDifferent
 }

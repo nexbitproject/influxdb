@@ -72,7 +72,7 @@ describe('QueryBuilder', () => {
     expect(queryAllByTestId(/tag-selector--container/).length).toBe(2)
   })
 
-  it('can select an aggregate window', async () => {
+  it('can select an aggregate window', () => {
     const {getByTestId} = renderWithRedux(<QueryBuilder />, setInitialState)
 
     // can only select an aggregate window if you've already selected a function
@@ -83,7 +83,7 @@ describe('QueryBuilder', () => {
 
     fireEvent.click(windowSelectorButton)
 
-    const windowSelector = getByTestId('duration-selector--menu')
+    const windowSelector = getByTestId('duration-selector--menu--contents')
 
     expect(windowSelector.childElementCount).toBe(14)
 

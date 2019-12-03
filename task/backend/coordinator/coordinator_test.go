@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/task/backend/scheduler"
 	"go.uber.org/zap"
 )
 
@@ -27,7 +28,7 @@ var (
 		TaskID: one,
 	}
 
-	allowUnexported = cmp.AllowUnexported(scheduler{})
+	allowUnexported = cmp.AllowUnexported(schedulerS{}, scheduler.Schedule{}, SchedulableTask{})
 )
 
 func Test_Coordinator(t *testing.T) {
@@ -37,7 +38,7 @@ func Test_Coordinator(t *testing.T) {
 		updateErr  error
 		releaseErr error
 		call       func(*testing.T, *Coordinator)
-		scheduler  *scheduler
+		scheduler  *schedulerS
 	}{
 		{
 			name: "TaskCreated",
@@ -46,7 +47,7 @@ func Test_Coordinator(t *testing.T) {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
-			scheduler: &scheduler{
+			scheduler: &schedulerS{
 				calls: []interface{}{
 					claimCall{taskOne},
 				},
@@ -59,7 +60,7 @@ func Test_Coordinator(t *testing.T) {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
-			scheduler: &scheduler{
+			scheduler: &schedulerS{
 				calls: []interface{}{
 					updateCall{activeThree},
 					claimCall{activeThree},
@@ -73,7 +74,7 @@ func Test_Coordinator(t *testing.T) {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
-			scheduler: &scheduler{
+			scheduler: &schedulerS{
 				calls: []interface{}{
 					releaseCall{three},
 					updateCall{taskThree},
@@ -88,7 +89,7 @@ func Test_Coordinator(t *testing.T) {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
-			scheduler: &scheduler{
+			scheduler: &schedulerS{
 				calls: []interface{}{
 					releaseCall{three},
 					updateCall{taskThree},
@@ -103,7 +104,7 @@ func Test_Coordinator(t *testing.T) {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
-			scheduler: &scheduler{
+			scheduler: &schedulerS{
 				calls: []interface{}{
 					releaseCall{three},
 					updateCall{taskThree},
@@ -117,7 +118,7 @@ func Test_Coordinator(t *testing.T) {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
-			scheduler: &scheduler{
+			scheduler: &schedulerS{
 				calls: []interface{}{
 					updateCall{taskTwo},
 				},
@@ -130,7 +131,7 @@ func Test_Coordinator(t *testing.T) {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
-			scheduler: &scheduler{
+			scheduler: &schedulerS{
 				calls: []interface{}{
 					releaseCall{two},
 				},
@@ -143,7 +144,7 @@ func Test_Coordinator(t *testing.T) {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
-			scheduler: &scheduler{
+			scheduler: &schedulerS{
 				calls: []interface{}{
 					cancelCall{one, one},
 				},
@@ -156,7 +157,7 @@ func Test_Coordinator(t *testing.T) {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
-			scheduler: &scheduler{
+			scheduler: &schedulerS{
 				calls: []interface{}{
 					updateCall{taskOne},
 				},
@@ -169,7 +170,7 @@ func Test_Coordinator(t *testing.T) {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
-			scheduler: &scheduler{
+			scheduler: &schedulerS{
 				calls: []interface{}{
 					updateCall{taskOne},
 				},
@@ -178,7 +179,7 @@ func Test_Coordinator(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var (
-				scheduler = &scheduler{
+				scheduler = &schedulerS{
 					claimErr:   test.claimErr,
 					updateErr:  test.updateErr,
 					releaseErr: test.releaseErr,

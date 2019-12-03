@@ -1,4 +1,4 @@
-import {SlackNotificationEndpoint} from '../../src/types'
+import {SlackNotificationEndpoint, Organization} from '../../src/types'
 
 describe('NotificationRules', () => {
   const name1 = 'Slack 1'
@@ -26,6 +26,123 @@ describe('NotificationRules', () => {
       // visit the alerting index
       cy.fixture('routes').then(({orgs, alerting}) => {
         cy.visit(`${orgs}/${id}${alerting}`)
+      })
+    })
+  })
+
+  describe('When a rule does not exist', () => {
+    it('should route the user to the alerting index page', () => {
+      const nonexistentID = '04984be058066088'
+
+      // visitng the rules edit overlay
+      cy.get('@org').then(({id}: Organization) => {
+        cy.fixture('routes').then(({orgs, alerting, rules}) => {
+          cy.visit(`${orgs}/${id}${alerting}${rules}/${nonexistentID}/edit`)
+          cy.url().should(
+            'eq',
+            `${Cypress.config().baseUrl}${orgs}/${id}${alerting}`
+          )
+        })
+      })
+    })
+  })
+
+  describe('numeric input validation in Theshold Checks', () => {
+    beforeEach(() => {
+      cy.getByTestID('page-contents').within(() => {
+        cy.getByTestID('dropdown').click()
+        cy.getByTestID('create-threshold-check').click()
+      })
+    })
+    describe('when threshold is above', () => {
+      it('should put input field in error status and stay in error status when input is invalid or empty', () => {
+        cy.getByTestID('checkeo--header alerting-tab').click()
+        cy.getByTestID('add-threshold-condition-CRIT').click()
+        cy.getByTestID('builder-conditions').within(() => {
+          cy.getByTestID('panel').within(() => {
+            cy.getByTestID('input-field')
+              .click()
+              .type('{backspace}{backspace}')
+              .invoke('attr', 'type')
+              .should('equal', 'text')
+              .getByTestID('input-field--error')
+              .should('have.length', 1)
+              .and('have.value', '')
+            cy.getByTestID('input-field')
+              .click()
+              .type('somerangetext')
+              .invoke('val')
+              .should('equal', '')
+              .getByTestID('input-field--error')
+              .should('have.length', 1)
+          })
+        })
+      })
+      it('should allow "20" to be deleted and then allow numeric input to get out of error status', () => {
+        cy.getByTestID('checkeo--header alerting-tab').click()
+        cy.getByTestID('add-threshold-condition-CRIT').click()
+        cy.getByTestID('builder-conditions').within(() => {
+          cy.getByTestID('panel').within(() => {
+            cy.getByTestID('input-field')
+              .click()
+              .type('{backspace}{backspace}9')
+              .invoke('val')
+              .should('equal', '9')
+              .getByTestID('input-field--error')
+              .should('have.length', 0)
+          })
+        })
+      })
+    })
+    describe('when threshold is inside range', () => {
+      it('should put input field in error status and stay in error status when input is invalid or empty', () => {
+        cy.getByTestID('checkeo--header alerting-tab').click()
+        cy.getByTestID('add-threshold-condition-CRIT').click()
+        cy.getByTestID('builder-conditions').within(() => {
+          cy.getByTestID('panel').within(() => {
+            cy.getByTestID('dropdown--button').click()
+            cy.get(
+              '.cf-dropdown-item--children:contains("is inside range")'
+            ).click()
+            cy.getByTestID('input-field')
+              .first()
+              .click()
+              .type('{backspace}{backspace}')
+              .invoke('attr', 'type')
+              .should('equal', 'text')
+              .getByTestID('input-field--error')
+              .should('have.length', 1)
+              .and('have.value', '')
+            cy.getByTestID('input-field')
+              .first()
+              .click()
+              .type('hhhhhhhhhhhh')
+              .invoke('val')
+              .should('equal', '')
+              .getByTestID('input-field--error')
+              .should('have.length', 1)
+          })
+        })
+      })
+      it('should allow "20" to be deleted and then allow numeric input to get out of error status', () => {
+        cy.getByTestID('checkeo--header alerting-tab').click()
+        cy.getByTestID('add-threshold-condition-CRIT').click()
+        cy.getByTestID('builder-conditions').within(() => {
+          cy.getByTestID('panel').within(() => {
+            cy.getByTestID('dropdown--button').click()
+            cy.get(
+              '.cf-dropdown-item--children:contains("is inside range")'
+            ).click()
+            cy.getByTestID('input-field')
+              .first()
+              .click()
+              .type('{backspace}{backspace}7')
+              .invoke('val')
+              .should('equal', '7')
+              .getByTestID('input-field--error')
+              .should('have.length', 0)
+          })
+        })
       })
     })
   })
@@ -105,5 +222,21 @@ describe('NotificationRules', () => {
     cy.getByTestID('rule-overlay-save--button').click()
 
     cy.getByTestID(`rule-card--name`).contains(ruleName)
+
+    describe('can edit a notification rule', () => {
+      cy.get<SlackNotificationEndpoint>('@endpoint').then(() => {
+        cy.getByTestID(`context-history-menu`).click()
+        cy.getByTestID(`context-history-task`).click()
+        cy.getByTestID(`alert-history-title`).should('exist')
+      })
+
+      it('can delete endpoint', () => {
+        cy.get<SlackNotificationEndpoint>('@endpoint').then(() => {
+          cy.getByTestID(`context-delete-menu`).click()
+          cy.getByTestID(`context-delete-task`).click()
+          //then finally check to make sure the endpoint is gone
+        })
+      })
+    })
   })
 })

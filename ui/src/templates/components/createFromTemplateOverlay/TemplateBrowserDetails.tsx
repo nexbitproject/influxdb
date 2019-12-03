@@ -28,11 +28,12 @@ class TemplateBrowserDetails extends PureComponent<Props> {
         autoSize={false}
       >
         <Panel
-          size={ComponentSize.Medium}
           testID="template-panel"
           className="import-template-overlay--panel"
         >
-          <Panel.Body>{this.panelContents}</Panel.Body>
+          <Panel.Body size={ComponentSize.Medium}>
+            {this.panelContents}
+          </Panel.Body>
         </Panel>
       </DapperScrollbars>
     )
@@ -44,7 +45,7 @@ class TemplateBrowserDetails extends PureComponent<Props> {
     if (!selectedTemplateSummary) {
       return (
         <EmptyState size={ComponentSize.Medium}>
-          <EmptyState.Text text="Select a Template from the left" />
+          <EmptyState.Text>Select a Template from the left</EmptyState.Text>
         </EmptyState>
       )
     }
@@ -133,8 +134,8 @@ class TemplateBrowserDetails extends PureComponent<Props> {
     const {selectedTemplateSummary} = this.props
     const name = _.get(selectedTemplateSummary, 'meta.name')
 
-    let templateName = name || 'Untitled'
-    let className = name
+    const templateName = name || 'Untitled'
+    const className = name
       ? 'import-template-overlay--name'
       : 'import-template-overlay--name missing'
 

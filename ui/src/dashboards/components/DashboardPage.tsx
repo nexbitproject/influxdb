@@ -19,7 +19,6 @@ import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 import * as dashboardActions from 'src/dashboards/actions'
 import * as rangesActions from 'src/dashboards/actions/ranges'
 import * as appActions from 'src/shared/actions/app'
-import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {
   setAutoRefreshInterval,
   setAutoRefreshStatus,
@@ -35,7 +34,6 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Constants
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
-import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 
 // Types
 import {
@@ -57,6 +55,9 @@ import * as AppActions from 'src/types/actions/app'
 import * as ColorsModels from 'src/types/colors'
 import {toggleShowVariablesControls} from 'src/userSettings/actions'
 import {LimitStatus} from 'src/cloud/actions/limits'
+
+// Selector
+import {getTimeRangeByDashboardID} from 'src/dashboards/selectors/index'
 
 interface StateProps {
   limitedResources: string[]
@@ -85,7 +86,6 @@ interface DispatchProps {
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
   onCreateCellWithView: typeof dashboardActions.createCellWithView
   onUpdateView: typeof dashboardActions.updateView
-  onSetActiveTimeMachine: typeof setActiveTimeMachine
   onToggleShowVariablesControls: typeof toggleShowVariablesControls
 }
 
@@ -112,14 +112,14 @@ type Props = PassedProps &
 
 @ErrorHandling
 class DashboardPage extends Component<Props> {
-  public async componentDidMount() {
+  public componentDidMount() {
     const {autoRefresh} = this.props
 
     if (autoRefresh.status === AutoRefreshStatus.Active) {
       GlobalAutoRefresher.poll(autoRefresh.interval)
     }
 
-    await this.getDashboard()
+    this.getDashboard()
   }
 
   public componentDidUpdate(prevProps: Props) {
@@ -206,16 +206,15 @@ class DashboardPage extends Component<Props> {
     )
   }
 
-  private getDashboard = async () => {
+  private getDashboard = () => {
     const {params, getDashboard} = this.props
 
-    await getDashboard(params.dashboardID)
+    getDashboard(params.dashboardID)
   }
 
   private handleChooseTimeRange = (timeRange: TimeRange): void => {
     const {dashboard, setDashTimeV1, updateQueryParams} = this.props
     setDashTimeV1(dashboard.id, {...timeRange})
-
     updateQueryParams({
       lower: timeRange.lower,
       upper: timeRange.upper,
@@ -249,17 +248,17 @@ class DashboardPage extends Component<Props> {
     this.handleSetAutoRefreshStatus(AutoRefreshStatus.Active)
   }
 
-  private handlePositionChange = async (cells: Cell[]): Promise<void> => {
+  private handlePositionChange = (cells: Cell[]) => {
     const {dashboard, updateCells} = this.props
-    await updateCells(dashboard, cells)
+    updateCells(dashboard, cells)
   }
 
-  private handleAddCell = async (): Promise<void> => {
+  private handleAddCell = () => {
     const {router, location} = this.props
     router.push(`${location.pathname}/cells/new`)
   }
 
-  private showNoteOverlay = async (id?: string): Promise<void> => {
+  private showNoteOverlay = (id?: string) => {
     if (id) {
       this.props.router.push(`${this.props.location.pathname}/notes/${id}/edit`)
     } else {
@@ -272,24 +271,24 @@ class DashboardPage extends Component<Props> {
     router.push(`${location.pathname}/cells/${cellID}/edit`)
   }
 
-  private handleCloneCell = async (cell: Cell): Promise<void> => {
+  private handleCloneCell = (cell: Cell) => {
     const {dashboard, onCreateCellWithView, views} = this.props
     const viewEntry = views[cell.id]
     if (viewEntry && viewEntry.view) {
-      await onCreateCellWithView(dashboard.id, viewEntry.view, cell)
+      onCreateCellWithView(dashboard.id, viewEntry.view, cell)
     }
   }
 
-  private handleRenameDashboard = async (name: string): Promise<void> => {
+  private handleRenameDashboard = (name: string) => {
     const {dashboard, updateDashboard} = this.props
     const renamedDashboard = {...dashboard, name}
 
-    await updateDashboard(renamedDashboard)
+    updateDashboard(renamedDashboard)
   }
 
-  private handleDeleteDashboardCell = async (cell: Cell): Promise<void> => {
+  private handleDeleteDashboardCell = (cell: Cell) => {
     const {dashboard, deleteCell} = this.props
-    await deleteCell(dashboard, cell)
+    deleteCell(dashboard, cell)
   }
 
   private get pageTitle(): string {
@@ -311,8 +310,7 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     cloud: {limits},
   } = state
 
-  const timeRange =
-    ranges.find(r => r.dashboardID === dashboardID) || DEFAULT_TIME_RANGE
+  const timeRange = getTimeRangeByDashboardID(ranges, dashboardID)
 
   const autoRefresh = state.autoRefresh[dashboardID] || AUTOREFRESH_DEFAULT
 
@@ -349,7 +347,6 @@ const mdtp: DispatchProps = {
   setZoomedTimeRange: rangesActions.setZoomedTimeRange,
   onCreateCellWithView: dashboardActions.createCellWithView,
   onUpdateView: dashboardActions.updateView,
-  onSetActiveTimeMachine: setActiveTimeMachine,
   onToggleShowVariablesControls: toggleShowVariablesControls,
 }
 

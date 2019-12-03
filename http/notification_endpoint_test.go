@@ -17,7 +17,7 @@ import (
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/notification/endpoint"
 	influxTesting "github.com/influxdata/influxdb/testing"
-	"github.com/julienschmidt/httprouter"
+	"github.com/influxdata/httprouter"
 	"go.uber.org/zap"
 )
 
@@ -231,6 +231,7 @@ func TestService_handleGetNotificationEndpoints(t *testing.T) {
 				}
 			}
 			r.URL.RawQuery = qp.Encode()
+			r = r.WithContext(pcontext.SetAuthorizer(r.Context(), &influxdb.Session{UserID: user1ID}))
 
 			w := httptest.NewRecorder()
 
@@ -1011,8 +1012,9 @@ func TestService_handlePostNotificationEndpointMember(t *testing.T) {
 				UserService: &mock.UserService{
 					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
 						return &influxdb.User{
-							ID:   id,
-							Name: "name",
+							ID:     id,
+							Name:   "name",
+							Status: influxdb.Active,
 						}, nil
 					},
 				},
@@ -1034,7 +1036,8 @@ func TestService_handlePostNotificationEndpointMember(t *testing.T) {
   },
   "role": "member",
   "id": "6f626f7274697320",
-  "name": "name"
+	"name": "name",
+	"status": "active"
 }
 `,
 			},
@@ -1104,8 +1107,9 @@ func TestService_handlePostNotificationEndpointOwner(t *testing.T) {
 				UserService: &mock.UserService{
 					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
 						return &influxdb.User{
-							ID:   id,
-							Name: "name",
+							ID:     id,
+							Name:   "name",
+							Status: influxdb.Active,
 						}, nil
 					},
 				},
@@ -1127,7 +1131,8 @@ func TestService_handlePostNotificationEndpointOwner(t *testing.T) {
   },
   "role": "owner",
   "id": "6f626f7274697320",
-  "name": "name"
+	"name": "name",
+	"status": "active"
 }
 `,
 			},

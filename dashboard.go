@@ -299,6 +299,21 @@ type ViewContents struct {
 	Name string `json:"name"`
 }
 
+// Values for all supported view property types.
+const (
+	ViewPropertyTypeCheck              = "check"
+	ViewPropertyTypeGauge              = "gauge"
+	ViewPropertyTypeHeatMap            = "heatmap"
+	ViewPropertyTypeHistogram          = "histogram"
+	ViewPropertyTypeLogViewer          = "log-viewer"
+	ViewPropertyTypeMarkdown           = "markdown"
+	ViewPropertyTypeScatter            = "scatter"
+	ViewPropertyTypeSingleStat         = "single-stat"
+	ViewPropertyTypeSingleStatPlusLine = "line-plus-single-stat"
+	ViewPropertyTypeTable              = "table"
+	ViewPropertyTypeXY                 = "xy"
+)
+
 // ViewProperties is used to mark other structures as conforming to a View.
 type ViewProperties interface {
 	viewProperties()
@@ -340,67 +355,67 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 	switch t.Shape {
 	case "chronograf-v2":
 		switch t.Type {
-		case "check":
+		case ViewPropertyTypeCheck:
 			var cv CheckViewProperties
 			if err := json.Unmarshal(v.B, &cv); err != nil {
 				return nil, err
 			}
 			vis = cv
-		case "xy":
+		case ViewPropertyTypeXY:
 			var xyv XYViewProperties
 			if err := json.Unmarshal(v.B, &xyv); err != nil {
 				return nil, err
 			}
 			vis = xyv
-		case "single-stat":
+		case ViewPropertyTypeSingleStat:
 			var ssv SingleStatViewProperties
 			if err := json.Unmarshal(v.B, &ssv); err != nil {
 				return nil, err
 			}
 			vis = ssv
-		case "gauge":
+		case ViewPropertyTypeGauge:
 			var gv GaugeViewProperties
 			if err := json.Unmarshal(v.B, &gv); err != nil {
 				return nil, err
 			}
 			vis = gv
-		case "table":
+		case ViewPropertyTypeTable:
 			var tv TableViewProperties
 			if err := json.Unmarshal(v.B, &tv); err != nil {
 				return nil, err
 			}
 			vis = tv
-		case "markdown":
+		case ViewPropertyTypeMarkdown:
 			var mv MarkdownViewProperties
 			if err := json.Unmarshal(v.B, &mv); err != nil {
 				return nil, err
 			}
 			vis = mv
-		case "log-viewer": // happens in log viewer stays in log viewer.
+		case ViewPropertyTypeLogViewer: // happens in log viewer stays in log viewer.
 			var lv LogViewProperties
 			if err := json.Unmarshal(v.B, &lv); err != nil {
 				return nil, err
 			}
 			vis = lv
-		case "line-plus-single-stat":
+		case ViewPropertyTypeSingleStatPlusLine:
 			var lv LinePlusSingleStatProperties
 			if err := json.Unmarshal(v.B, &lv); err != nil {
 				return nil, err
 			}
 			vis = lv
-		case "histogram":
+		case ViewPropertyTypeHistogram:
 			var hv HistogramViewProperties
 			if err := json.Unmarshal(v.B, &hv); err != nil {
 				return nil, err
 			}
 			vis = hv
-		case "heatmap":
+		case ViewPropertyTypeHeatMap:
 			var hv HeatmapViewProperties
 			if err := json.Unmarshal(v.B, &hv); err != nil {
 				return nil, err
 			}
 			vis = hv
-		case "scatter":
+		case ViewPropertyTypeScatter:
 			var sv ScatterViewProperties
 			if err := json.Unmarshal(v.B, &sv); err != nil {
 				return nil, err
@@ -800,6 +815,23 @@ type BuilderConfig struct {
 	AggregateWindow struct {
 		Period string `json:"period"`
 	} `json:"aggregateWindow"`
+}
+
+// NewBuilderTag is a constructor for the builder config types. This
+// isn't technically required, but working with struct literals with embedded
+// struct tags is really painful. This is to get around that bit. Would be nicer
+// to have these as actual types maybe.
+func NewBuilderTag(key string, values ...string) struct {
+	Key    string   `json:"key"`
+	Values []string `json:"values"`
+} {
+	return struct {
+		Key    string   `json:"key"`
+		Values []string `json:"values"`
+	}{
+		Key:    key,
+		Values: values,
+	}
 }
 
 // Axis represents the visible extents of a visualization

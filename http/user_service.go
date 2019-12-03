@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"path"
 
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
 
@@ -72,6 +72,10 @@ func NewUserHandler(b *UserBackend) *UserHandler {
 	h.HandlerFunc("GET", usersLogPath, h.handleGetUserLog)
 	h.HandlerFunc("PATCH", usersIDPath, h.handlePatchUser)
 	h.HandlerFunc("DELETE", usersIDPath, h.handleDeleteUser)
+	// the POST doesn't need to be nested under users in this scheme
+	// seems worthwhile to make this a root resource in our HTTP API
+	// removes coupling with userid.
+	h.HandlerFunc("POST", usersPasswordPath, h.handlePostUserPassword)
 	h.HandlerFunc("PUT", usersPasswordPath, h.handlePutUserPassword)
 
 	h.HandlerFunc("GET", mePath, h.handleGetMe)
@@ -80,14 +84,56 @@ func NewUserHandler(b *UserBackend) *UserHandler {
 	return h
 }
 
-func (h *UserHandler) putPassword(ctx context.Context, w http.ResponseWriter, r *http.Request) (username string, err error) {
+type passwordSetRequest struct {
+	Password string `json:"password"`
+}
 
-	req, err := decodePasswordResetRequest(ctx, r)
+// handlePutPassword is the HTTP handler for the PUT /api/v2/users/:id/password
+func (h *UserHandler) handlePostUserPassword(w http.ResponseWriter, r *http.Request) {
+	var body passwordSetRequest
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		h.HandleHTTPError(r.Context(), &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Err:  err,
+		}, w)
+		return
+	}
+
+	params := httprouter.ParamsFromContext(r.Context())
+	userID, err := influxdb.IDFromString(params.ByName("id"))
+	if err != nil {
+		h.HandleHTTPError(r.Context(), &influxdb.Error{
+			Msg: "invalid user ID provided in route",
+		}, w)
+		return
+	}
+
+	err = h.PasswordsService.SetPassword(r.Context(), *userID, body.Password)
+	if err != nil {
+		h.HandleHTTPError(r.Context(), err, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *UserHandler) putPassword(ctx context.Context, w http.ResponseWriter, r *http.Request) (username string, err error) {
+	req, err := decodePasswordResetRequest(r)
 	if err != nil {
 		return "", err
 	}
 
-	err = h.PasswordsService.CompareAndSetPassword(ctx, req.Username, req.PasswordOld, req.PasswordNew)
+	params := httprouter.ParamsFromContext(r.Context())
+	userID, err := influxdb.IDFromString(params.ByName("id"))
+	if err != nil {
+		h.HandleHTTPError(r.Context(), &influxdb.Error{
+			Msg: "invalid user ID provided in route",
+		}, w)
+		return
+	}
+
+	err = h.PasswordsService.CompareAndSetPassword(ctx, *userID, req.PasswordOld, req.PasswordNew)
 	if err != nil {
 		return "", err
 	}
@@ -97,7 +143,6 @@ func (h *UserHandler) putPassword(ctx context.Context, w http.ResponseWriter, r 
 // handlePutPassword is the HTTP handler for the PUT /api/v2/users/:id/password
 func (h *UserHandler) handlePutUserPassword(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("user update password request", zap.String("r", fmt.Sprint(r)))
 	_, err := h.putPassword(ctx, w, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -117,7 +162,7 @@ type passwordResetRequestBody struct {
 	Password string `json:"password"`
 }
 
-func decodePasswordResetRequest(ctx context.Context, r *http.Request) (*passwordResetRequest, error) {
+func decodePasswordResetRequest(r *http.Request) (*passwordResetRequest, error) {
 	u, o, ok := r.BasicAuth()
 	if !ok {
 		return nil, fmt.Errorf("invalid basic auth")
@@ -142,11 +187,14 @@ func decodePasswordResetRequest(ctx context.Context, r *http.Request) (*password
 // handlePostUser is the HTTP handler for the POST /api/v2/users route.
 func (h *UserHandler) handlePostUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("user create request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodePostUserRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
+	}
+
+	if req.User.Status == "" {
+		req.User.Status = influxdb.Active
 	}
 
 	if err := h.UserService.CreateUser(ctx, req.User); err != nil {
@@ -202,7 +250,6 @@ func (h *UserHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
 // handleGetUser is the HTTP handler for the GET /api/v2/users/:id route.
 func (h *UserHandler) handleGetUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("user retrieve request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeGetUserRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -251,7 +298,6 @@ func decodeGetUserRequest(ctx context.Context, r *http.Request) (*getUserRequest
 // handleDeleteUser is the HTTP handler for the DELETE /api/v2/users/:id route.
 func (h *UserHandler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("user delete request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeDeleteUserRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -293,7 +339,7 @@ func decodeDeleteUserRequest(ctx context.Context, r *http.Request) (*deleteUserR
 
 type usersResponse struct {
 	Links map[string]string `json:"links"`
-	Users []*userResponse   `json:"users"`
+	Users []*UserResponse   `json:"users"`
 }
 
 func (us usersResponse) ToInfluxdb() []*influxdb.User {
@@ -309,7 +355,7 @@ func newUsersResponse(users []*influxdb.User) *usersResponse {
 		Links: map[string]string{
 			"self": "/api/v2/users",
 		},
-		Users: []*userResponse{},
+		Users: []*UserResponse{},
 	}
 	for _, user := range users {
 		res.Users = append(res.Users, newUserResponse(user))
@@ -317,13 +363,14 @@ func newUsersResponse(users []*influxdb.User) *usersResponse {
 	return &res
 }
 
-type userResponse struct {
+// UserResponse is the response of user
+type UserResponse struct {
 	Links map[string]string `json:"links"`
 	influxdb.User
 }
 
-func newUserResponse(u *influxdb.User) *userResponse {
-	return &userResponse{
+func newUserResponse(u *influxdb.User) *UserResponse {
+	return &UserResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/users/%s", u.ID),
 			"logs": fmt.Sprintf("/api/v2/users/%s/logs", u.ID),
@@ -335,7 +382,6 @@ func newUserResponse(u *influxdb.User) *userResponse {
 // handleGetUsers is the HTTP handler for the GET /api/v2/users route.
 func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("users retrieve request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeGetUsersRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -382,7 +428,6 @@ func decodeGetUsersRequest(ctx context.Context, r *http.Request) (*getUsersReque
 // handlePatchUser is the HTTP handler for the PATCH /api/v2/users/:id route.
 func (h *UserHandler) handlePatchUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("user update request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodePatchUserRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -427,6 +472,10 @@ func decodePatchUserRequest(ctx context.Context, r *http.Request) (*patchUserReq
 		return nil, err
 	}
 
+	if err := upd.Valid(); err != nil {
+		return nil, err
+	}
+
 	return &patchUserRequest{
 		Update: upd,
 		UserID: i,
@@ -466,7 +515,7 @@ func (s *UserService) FindMe(ctx context.Context, id influxdb.ID) (*influxdb.Use
 		return nil, err
 	}
 
-	var res userResponse
+	var res UserResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
@@ -497,7 +546,7 @@ func (s *UserService) FindUserByID(ctx context.Context, id influxdb.ID) (*influx
 		return nil, err
 	}
 
-	var res userResponse
+	var res UserResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
@@ -649,7 +698,7 @@ func (s *UserService) UpdateUser(ctx context.Context, id influxdb.ID, upd influx
 		return nil, err
 	}
 
-	var res userResponse
+	var res UserResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
@@ -687,7 +736,6 @@ func userIDPath(id influxdb.ID) string {
 // hanldeGetUserLog retrieves a user log by the users ID.
 func (h *UserHandler) handleGetUserLog(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("user log retrieve request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeGetUserLogRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -749,4 +797,58 @@ func newUserLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry) *opera
 		},
 		Logs: logs,
 	}
+}
+
+// PasswordService is an http client to speak to the password service.
+type PasswordService struct {
+	Addr               string
+	Token              string
+	InsecureSkipVerify bool
+}
+
+var _ influxdb.PasswordsService = (*PasswordService)(nil)
+
+// SetPassword sets the user's password.
+func (s *PasswordService) SetPassword(ctx context.Context, userID influxdb.ID, password string) error {
+	u, err := NewURL(s.Addr, path.Join("/api/v2/users", userID.String(), "password"))
+	if err != nil {
+		return err
+	}
+
+	newPass := passwordSetRequest{
+		Password: password,
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(newPass); err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, u.String(), &buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	SetToken(s.Token, req)
+
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	return CheckError(resp)
+}
+
+// ComparePassword compares the user new password with existing. Note: is not implemented.
+func (s *PasswordService) ComparePassword(ctx context.Context, userID influxdb.ID, password string) error {
+	panic("not implemented")
+}
+
+// CompareAndSetPassword compares the old and new password and submits the new password if possoble.
+// Note: is not implemented.
+func (s *PasswordService) CompareAndSetPassword(ctx context.Context, userID influxdb.ID, old string, new string) error {
+	panic("not implemented")
 }

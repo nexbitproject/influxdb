@@ -40,7 +40,7 @@ interface OwnProps {
   name: string
   onSetName: (name: string) => void
   onCancel: () => void
-  onSave: () => Promise<void>
+  onSave: () => void
 }
 
 interface StateProps {
@@ -69,13 +69,13 @@ const CheckEOHeader: FC<Props> = ({
 }) => {
   const [saveStatus, setSaveStatus] = useState(RemoteDataState.NotStarted)
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (saveStatus === RemoteDataState.Loading) {
       return
     }
 
     setSaveStatus(RemoteDataState.Loading)
-    await onSave()
+    onSave()
     setSaveStatus(RemoteDataState.NotStarted)
   }
 
@@ -86,7 +86,7 @@ const CheckEOHeader: FC<Props> = ({
   }
 
   const saveButtonStatus = () => {
-    if (!isCheckSaveable(draftQueries, check.type)) {
+    if (!isCheckSaveable(draftQueries, check)) {
       return ComponentStatus.Disabled
     }
 
@@ -98,10 +98,14 @@ const CheckEOHeader: FC<Props> = ({
   }
 
   const {singleField, singleAggregateFunc} = isDraftQueryAlertable(draftQueries)
+  const oneOrMoreThresholds =
+    check.type === 'threshold'
+      ? check.thresholds && !!check.thresholds.length
+      : false
 
   return (
     <Page.Header fullWidth={true}>
-      <Page.Header.Left>
+      <Page.HeaderLeft>
         <RenamablePageTitle
           name={name}
           onRename={onSetName}
@@ -109,15 +113,15 @@ const CheckEOHeader: FC<Props> = ({
           maxLength={CHECK_NAME_MAX_LENGTH}
           onClickOutside={handleClickOutsideTitle}
         />
-      </Page.Header.Left>
-      <Page.Header.Center widthPixels={300}>
+      </Page.HeaderLeft>
+      <Page.HeaderCenter>
         <CheckAlertingButton
           activeTab={activeTab}
           draftQueries={draftQueries}
           setActiveTab={setActiveTab}
         />
-      </Page.Header.Center>
-      <Page.Header.Right>
+      </Page.HeaderCenter>
+      <Page.HeaderRight>
         <SquareButton
           icon={IconFont.Remove}
           onClick={onCancel}
@@ -130,8 +134,9 @@ const CheckEOHeader: FC<Props> = ({
           checkType={check.type}
           singleField={singleField}
           singleAggregateFunc={singleAggregateFunc}
+          oneOrMoreThresholds={oneOrMoreThresholds}
         />
-      </Page.Header.Right>
+      </Page.HeaderRight>
     </Page.Header>
   )
 }

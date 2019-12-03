@@ -93,7 +93,7 @@ const getVarChildren = (
 */
 const collectAncestors = (
   node: VariableNode,
-  acc = new Set()
+  acc: Set<VariableNode> = new Set()
 ): VariableNode[] => {
   for (const parent of node.parents) {
     if (!acc.has(parent)) {
@@ -119,7 +119,7 @@ const findSubgraph = (
   graph: VariableNode[],
   variables: Variable[]
 ): VariableNode[] => {
-  const subgraph = new Set()
+  const subgraph: Set<VariableNode> = new Set()
 
   for (const node of graph) {
     const shouldKeep =
@@ -161,7 +161,7 @@ const mapVariableValues = (
   prevSelection: string,
   defaultSelection: string
 ): VariableValues => {
-  const values: string[] = Object.values(variable.arguments.values)
+  const values: string[] = Object.keys(variable.arguments.values)
 
   return {
     valueType: 'string',
@@ -204,7 +204,7 @@ const constVariableValues = (
 */
 export const collectDescendants = (
   node: VariableNode,
-  acc = new Set()
+  acc: Set<VariableNode> = new Set()
 ): VariableNode[] => {
   for (const child of node.children) {
     if (!acc.has(child)) {
@@ -219,7 +219,7 @@ export const collectDescendants = (
 /*
   Hydrate the values of a single node in the graph.
 
-  This assumes that every descendant of this node has already been hydrated. 
+  This assumes that every descendant of this node has already been hydrated.
 */
 const hydrateVarsHelper = async (
   node: VariableNode,
@@ -360,7 +360,7 @@ const extractResult = (graph: VariableNode[]): VariableValuesByID => {
   1. Construct a graph that represents the dependency structure between
      variables. A variable `a` depends on variable `b` if the query for `a`
      uses the variable `b`.
-     
+
      Each node in the graph has a hydration status: it it either `NotStarted`,
      `Loading` (values are being fetched), `Error` (values failed to fetch or
      cannot be fetched), or `Done` (values have been fetched successfully).

@@ -1,10 +1,11 @@
 package http
 
 import (
-	http "net/http"
+	"net/http"
 	"strings"
 
-	influxdb "github.com/influxdata/influxdb"
+	"github.com/go-chi/chi"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
 	"github.com/influxdata/influxdb/chronograf/server"
 	"github.com/influxdata/influxdb/http/metric"
@@ -18,28 +19,31 @@ import (
 // APIHandler is a collection of all the service handlers.
 type APIHandler struct {
 	influxdb.HTTPErrorHandler
-	BucketHandler               *BucketHandler
-	UserHandler                 *UserHandler
-	OrgHandler                  *OrgHandler
-	AuthorizationHandler        *AuthorizationHandler
-	DashboardHandler            *DashboardHandler
-	LabelHandler                *LabelHandler
 	AssetHandler                *AssetHandler
-	ChronografHandler           *ChronografHandler
-	ScraperHandler              *ScraperHandler
-	SourceHandler               *SourceHandler
-	VariableHandler             *VariableHandler
-	TaskHandler                 *TaskHandler
+	AuthorizationHandler        *AuthorizationHandler
+	BucketHandler               *BucketHandler
 	CheckHandler                *CheckHandler
-	TelegrafHandler             *TelegrafHandler
-	QueryHandler                *FluxHandler
-	WriteHandler                *WriteHandler
+	ChronografHandler           *ChronografHandler
+	DashboardHandler            *DashboardHandler
+	DeleteHandler               *DeleteHandler
 	DocumentHandler             *DocumentHandler
-	SetupHandler                *SetupHandler
-	SessionHandler              *SessionHandler
-	SwaggerHandler              http.Handler
-	NotificationRuleHandler     *NotificationRuleHandler
+	LabelHandler                *LabelHandler
 	NotificationEndpointHandler *NotificationEndpointHandler
+	NotificationRuleHandler     *NotificationRuleHandler
+	OrgHandler                  *OrgHandler
+	QueryHandler                *FluxHandler
+	ScraperHandler              *ScraperHandler
+	SessionHandler              *SessionHandler
+	SetupHandler                *SetupHandler
+	SourceHandler               *SourceHandler
+	SwaggerHandler              http.Handler
+	TaskHandler                 *TaskHandler
+	TelegrafHandler             *TelegrafHandler
+	UserHandler                 *UserHandler
+	VariableHandler             *VariableHandler
+	WriteHandler                *WriteHandler
+
+	Gateway chi.Router
 }
 
 // APIBackend is all services and associated parameters required to construct
@@ -57,6 +61,7 @@ type APIBackend struct {
 	QueryEventRecorder metric.EventRecorder
 
 	PointsWriter                    storage.PointsWriter
+	DeleteService                   influxdb.DeleteService
 	AuthorizationService            influxdb.AuthorizationService
 	BucketService                   influxdb.BucketService
 	SessionService                  influxdb.SessionService
@@ -103,10 +108,33 @@ func (b *APIBackend) PrometheusCollectors() []prometheus.Collector {
 	return cs
 }
 
+// ResourceHandler is an HTTP handler for a resource. The prefix
+// describes the url path prefix that relates to the handler
+// endpoints.
+type ResourceHandler interface {
+	Prefix() string
+	http.Handler
+}
+
+// APIHandlerOptFn is a functional input param to set parameters on
+// the APIHandler.
+type APIHandlerOptFn func(*APIHandler)
+
+// WithResourceHandler registers a resource handler on the APIHandler.
+func WithResourceHandler(resHandler ResourceHandler) APIHandlerOptFn {
+	return func(h *APIHandler) {
+		h.Gateway.Mount(resHandler.Prefix(), resHandler)
+	}
+}
+
 // NewAPIHandler constructs all api handlers beneath it and returns an APIHandler
-func NewAPIHandler(b *APIBackend) *APIHandler {
+func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	h := &APIHandler{
 		HTTPErrorHandler: b.HTTPErrorHandler,
+		Gateway:          newBaseChiRouter(b.HTTPErrorHandler),
+	}
+	for _, o := range opts {
+		o(h)
 	}
 
 	internalURM := b.UserResourceMappingService
@@ -115,7 +143,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	documentBackend := NewDocumentBackend(b)
 	h.DocumentHandler = NewDocumentHandler(documentBackend)
 
-	sessionBackend := NewSessionBackend(b)
+	sessionBackend := newSessionBackend(b)
 	h.SessionHandler = NewSessionHandler(sessionBackend)
 
 	bucketBackend := NewBucketBackend(b)
@@ -128,6 +156,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	userBackend := NewUserBackend(b)
 	userBackend.UserService = authorizer.NewUserService(b.UserService)
+	userBackend.PasswordsService = authorizer.NewPasswordService(b.PasswordsService)
 	h.UserHandler = NewUserHandler(userBackend)
 
 	dashboardBackend := NewDashboardBackend(b)
@@ -182,6 +211,9 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	writeBackend := NewWriteBackend(b)
 	h.WriteHandler = NewWriteHandler(writeBackend)
 
+	deleteBackend := NewDeleteBackend(b)
+	h.DeleteHandler = NewDeleteHandler(deleteBackend)
+
 	fluxBackend := NewFluxBackend(b)
 	h.QueryHandler = NewFluxHandler(fluxBackend)
 
@@ -229,6 +261,7 @@ var apiLinks = map[string]interface{}{
 	"telegrafs": "/api/v2/telegrafs",
 	"users":     "/api/v2/users",
 	"write":     "/api/v2/write",
+	"delete":    "/api/v2/delete",
 }
 
 func (h *APIHandler) serveLinks(w http.ResponseWriter, r *http.Request) {
@@ -263,6 +296,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(r.URL.Path, "/api/v2/write") {
 		h.WriteHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/api/v2/delete") {
+		h.DeleteHandler.ServeHTTP(w, r)
 		return
 	}
 
@@ -361,5 +399,9 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	baseHandler{HTTPErrorHandler: h.HTTPErrorHandler}.notFound(w, r)
+	// router has not found route registered on it directly
+	// if a route slips through, then the same 404 as before
+	// if a route matches on the gateway router, it will use
+	// whatever handler that matches the router in question.
+	h.Gateway.ServeHTTP(w, r)
 }

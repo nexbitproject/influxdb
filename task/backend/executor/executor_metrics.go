@@ -9,13 +9,14 @@ import (
 )
 
 type ExecutorMetrics struct {
-	totalRunsComplete *prometheus.CounterVec
-	activeRuns        prometheus.Collector
-	queueDelta        *prometheus.SummaryVec
-	runDuration       *prometheus.SummaryVec
-	errorsCounter     *prometheus.CounterVec
-	manualRunsCounter *prometheus.CounterVec
-	resumeRunsCounter *prometheus.CounterVec
+	totalRunsComplete    *prometheus.CounterVec
+	activeRuns           prometheus.Collector
+	queueDelta           *prometheus.SummaryVec
+	runDuration          *prometheus.SummaryVec
+	errorsCounter        *prometheus.CounterVec
+	manualRunsCounter    *prometheus.CounterVec
+	resumeRunsCounter    *prometheus.CounterVec
+	unrecoverableCounter *prometheus.CounterVec
 }
 
 type runCollector struct {
@@ -35,7 +36,7 @@ func NewExecutorMetrics(te *TaskExecutor) *ExecutorMetrics {
 			Subsystem: subsystem,
 			Name:      "total_runs_complete",
 			Help:      "Total number of runs completed across all tasks, split out by success or failure.",
-		}, []string{"status"}),
+		}, []string{"task_type", "status"}),
 
 		activeRuns: NewRunCollector(te),
 
@@ -45,7 +46,7 @@ func NewExecutorMetrics(te *TaskExecutor) *ExecutorMetrics {
 			Name:       "run_queue_delta",
 			Help:       "The duration in seconds between a run being due to start and actually starting.",
 			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
-		}, []string{"taskID"}),
+		}, []string{"task_type", "taskID"}),
 
 		runDuration: prometheus.NewSummaryVec(prometheus.SummaryOpts{
 			Namespace:  namespace,
@@ -53,14 +54,21 @@ func NewExecutorMetrics(te *TaskExecutor) *ExecutorMetrics {
 			Name:       "run_duration",
 			Help:       "The duration in seconds between a run starting and finishing.",
 			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
-		}, []string{"taskID"}),
+		}, []string{"task_type", "taskID"}),
 
 		errorsCounter: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
 			Name:      "errors_counter",
 			Help:      "The number of errors thrown by the executor with the type of error (ex. Invalid, Internal, etc.)",
-		}, []string{"errorType"}),
+		}, []string{"task_type", "errorType"}),
+
+		unrecoverableCounter: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "unrecoverable_counter",
+			Help:      "The number of errors by taskID that must be manually resolved or have the task deactivated.",
+		}, []string{"taskID", "errorType"}),
 
 		manualRunsCounter: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
@@ -113,26 +121,44 @@ func (em *ExecutorMetrics) PrometheusCollectors() []prometheus.Collector {
 		em.runDuration,
 		em.manualRunsCounter,
 		em.resumeRunsCounter,
+		em.unrecoverableCounter,
 	}
 }
 
 // StartRun store the delta time between when a run is due to start and actually starting.
-func (em *ExecutorMetrics) StartRun(taskID influxdb.ID, queueDelta time.Duration) {
-	em.queueDelta.WithLabelValues("all").Observe(queueDelta.Seconds())
-	em.queueDelta.WithLabelValues(taskID.String()).Observe(queueDelta.Seconds())
+func (em *ExecutorMetrics) StartRun(task *influxdb.Task, queueDelta time.Duration) {
+	em.queueDelta.WithLabelValues(task.Type, "all").Observe(queueDelta.Seconds())
+	em.queueDelta.WithLabelValues("", task.ID.String()).Observe(queueDelta.Seconds())
 }
 
 // FinishRun adjusts the metrics to indicate a run is no longer in progress for the given task ID.
-func (em *ExecutorMetrics) FinishRun(taskID influxdb.ID, status backend.RunStatus, runDuration time.Duration) {
-	em.totalRunsComplete.WithLabelValues(status.String()).Inc()
+func (em *ExecutorMetrics) FinishRun(task *influxdb.Task, status backend.RunStatus, runDuration time.Duration) {
+	em.totalRunsComplete.WithLabelValues(task.Type, status.String()).Inc()
 
-	em.runDuration.WithLabelValues("all").Observe(runDuration.Seconds())
-	em.runDuration.WithLabelValues(taskID.String()).Observe(runDuration.Seconds())
+	em.runDuration.WithLabelValues(task.Type, "all").Observe(runDuration.Seconds())
+	em.runDuration.WithLabelValues("", task.ID.String()).Observe(runDuration.Seconds())
 }
 
-// LogError increments the count of errors.
-func (em *ExecutorMetrics) LogError(err *influxdb.Error) {
-	em.errorsCounter.WithLabelValues(err.Code)
+// LogError increments the count of errors by error code.
+func (em *ExecutorMetrics) LogError(taskType string, err error) {
+	switch e := err.(type) {
+	case *influxdb.Error:
+		em.errorsCounter.WithLabelValues(taskType, e.Code).Inc()
+	default:
+		em.errorsCounter.WithLabelValues(taskType, "unknown").Inc()
+	}
+}
+
+// LogUnrecoverableError increments the count of unrecoverable errors, which require admin intervention to resolve or deactivate
+// This count is separate from the errors count so that the errors metric can be used to identify only internal, rather than user errors
+// and so that unrecoverable errors can be quickly identified for deactivation
+func (em *ExecutorMetrics) LogUnrecoverableError(taskID influxdb.ID, err error) {
+	switch e := err.(type) {
+	case *influxdb.Error:
+		em.unrecoverableCounter.WithLabelValues(taskID.String(), e.Code).Inc()
+	default:
+		em.unrecoverableCounter.WithLabelValues(taskID.String(), "unknown").Inc()
+	}
 }
 
 // Describe returns all descriptions associated with the run collector.

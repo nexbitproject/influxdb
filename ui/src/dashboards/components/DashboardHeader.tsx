@@ -42,7 +42,7 @@ interface Props {
   onManualRefresh: () => void
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
   onAddCell: () => void
-  onRenameDashboard: (name: string) => Promise<void>
+  onRenameDashboard: (name: string) => void
   toggleVariablesControlBar: () => void
   isShowingVariablesControlBar: boolean
   onAddNote: () => void
@@ -67,15 +67,15 @@ export default class DashboardHeader extends Component<Props> {
       zoomedTimeRange: {upper: zoomedUpper, lower: zoomedLower},
       toggleVariablesControlBar,
       isShowingVariablesControlBar,
-      onAddCell,
       onRenameDashboard,
+      onAddCell,
       activeDashboard,
       autoRefresh,
     } = this.props
 
     return (
       <Page.Header fullWidth={true}>
-        <Page.Header.Left>
+        <Page.HeaderLeft>
           <RenamablePageTitle
             prefix={_.get(org, 'name', '')}
             maxLength={DASHBOARD_NAME_MAX_LENGTH}
@@ -83,8 +83,8 @@ export default class DashboardHeader extends Component<Props> {
             name={activeDashboard}
             placeholder={DEFAULT_DASHBOARD_NAME}
           />
-        </Page.Header.Left>
-        <Page.Header.Right>
+        </Page.HeaderLeft>
+        <Page.HeaderRight>
           <GraphTips />
           <Button
             icon={IconFont.AddCell}
@@ -127,7 +127,7 @@ export default class DashboardHeader extends Component<Props> {
             titleText="Enter Presentation Mode"
             onClick={this.handleClickPresentationButton}
           />
-        </Page.Header.Right>
+        </Page.HeaderRight>
       </Page.Header>
     )
   }

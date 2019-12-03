@@ -1,12 +1,20 @@
+// Libraries
+import {get, isEmpty} from 'lodash'
+
 // API
 import {
   runQuery,
   RunQueryResult,
   RunQuerySuccessResult,
 } from 'src/shared/apis/query'
+import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
 // Actions
-import {refreshVariableValues, selectValue} from 'src/variables/actions'
+import {
+  refreshVariableValues,
+  selectValue,
+  setValues,
+} from 'src/variables/actions'
 import {notify} from 'src/shared/actions/notifications'
 
 // Constants
@@ -26,10 +34,11 @@ import {
 } from 'src/variables/selectors'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Types
 import {CancelBox} from 'src/types/promises'
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, StatusRow} from 'src/types'
 import {GetState} from 'src/types'
 
 export type Action = SetQueryResults | SaveDraftQueriesAction
@@ -41,6 +50,7 @@ interface SetQueryResults {
     files?: string[]
     fetchDuration?: number
     errorMessage?: string
+    statuses?: StatusRow[][]
   }
 }
 
@@ -48,7 +58,8 @@ const setQueryResults = (
   status: RemoteDataState,
   files?: string[],
   fetchDuration?: number,
-  errorMessage?: string
+  errorMessage?: string,
+  statuses?: StatusRow[][]
 ): SetQueryResults => ({
   type: 'SET_QUERY_RESULTS',
   payload: {
@@ -56,15 +67,23 @@ const setQueryResults = (
     files,
     fetchDuration,
     errorMessage,
+    statuses,
   },
 })
 
-export const refreshTimeMachineVariableValues = () => async (
-  dispatch,
-  getState: GetState
-) => {
-  const contextID = getState().timeMachines.activeTimeMachineID
+export const refreshTimeMachineVariableValues = (
+  prevContextID?: string
+) => async (dispatch, getState: GetState) => {
+  const state = getState()
+  const contextID = state.timeMachines.activeTimeMachineID
 
+  if (prevContextID) {
+    const values = get(state, `variables.values.${prevContextID}.values`) || {}
+    if (!isEmpty(values)) {
+      dispatch(setValues(contextID, RemoteDataState.Done, values))
+      return
+    }
+  }
   // Find variables currently used by queries in the TimeMachine
   const {view, draftQueries} = getActiveTimeMachine(getState())
   const draftView = {
@@ -87,9 +106,16 @@ export const refreshTimeMachineVariableValues = () => async (
 }
 
 let pendingResults: Array<CancelBox<RunQueryResult>> = []
+let pendingCheckStatuses: CancelBox<StatusRow[][]> = null
 
-export const executeQueries = () => async (dispatch, getState: GetState) => {
-  const {view} = getActiveTimeMachine(getState())
+export const executeQueries = (dashboardID?: string) => async (
+  dispatch,
+  getState: GetState
+) => {
+  const {
+    view,
+    alerting: {check},
+  } = getActiveTimeMachine(getState())
   const queries = view.properties.queries.filter(({text}) => !!text.trim())
 
   if (!queries.length) {
@@ -99,7 +125,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
   try {
     dispatch(setQueryResults(RemoteDataState.Loading, null, null, null))
 
-    await dispatch(refreshTimeMachineVariableValues())
+    await dispatch(refreshTimeMachineVariableValues(dashboardID))
 
     const orgID = getState().orgs.org.id
 
@@ -118,6 +144,13 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
     const results = await Promise.all(pendingResults.map(r => r.promise))
     const duration = Date.now() - startTime
+
+    let statuses = [[]] as StatusRow[][]
+    if (check && isFlagEnabled('eventMarkers')) {
+      const extern = buildVarsOption(variableAssignments)
+      pendingCheckStatuses = runStatusesQuery(orgID, check.id, extern)
+      statuses = await pendingCheckStatuses.promise // TODO handle errors
+    }
 
     for (const result of results) {
       if (result.type === 'UNKNOWN_ERROR') {
@@ -139,7 +172,9 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
     const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
 
-    dispatch(setQueryResults(RemoteDataState.Done, files, duration))
+    dispatch(
+      setQueryResults(RemoteDataState.Done, files, duration, null, statuses)
+    )
   } catch (e) {
     if (e.name === 'CancellationError') {
       return
@@ -158,7 +193,7 @@ const saveDraftQueries = (): SaveDraftQueriesAction => ({
   type: 'SAVE_DRAFT_QUERIES',
 })
 
-export const saveAndExecuteQueries = () => async dispatch => {
+export const saveAndExecuteQueries = () => dispatch => {
   dispatch(saveDraftQueries())
   dispatch(executeQueries())
 }
@@ -182,7 +217,7 @@ export const addVariableToTimeMachine = (variableID: string) => async (
 export const selectVariableValue = (
   variableID: string,
   selectedValue: string
-) => async (dispatch, getState: GetState) => {
+) => (dispatch, getState: GetState) => {
   const contextID = getState().timeMachines.activeTimeMachineID
 
   dispatch(selectValue(contextID, variableID, selectedValue))

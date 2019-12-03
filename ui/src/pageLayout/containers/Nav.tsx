@@ -10,7 +10,9 @@ import CloudNav from 'src/pageLayout/components/CloudNav'
 import AccountNavSubItem from 'src/pageLayout/components/AccountNavSubItem'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
-import {FeatureFlag} from 'src/shared/utils/featureFlag'
+
+// Constants
+import {HOMEPAGE_PATHNAME} from 'src/shared/constants'
 
 // Utils
 import {getNavItemActivation} from 'src/pageLayout/utils'
@@ -74,7 +76,7 @@ class SideNav extends PureComponent<Props, State> {
     const tokensLink = `${orgPrefix}/load-data/tokens`
     const clientLibrariesLink = `${orgPrefix}/load-data/client-libraries`
     // Settings
-    const settingsLink = `${orgPrefix}/settings/members`
+    const settingsLink = `${orgPrefix}/settings`
     const membersLink = `${orgPrefix}/settings/members`
     const variablesLink = `${orgPrefix}/settings/variables`
     const templatesLink = `${orgPrefix}/settings/templates`
@@ -99,7 +101,10 @@ class SideNav extends PureComponent<Props, State> {
                 <Icon glyph={IconFont.CuboNav} />
               </Link>
             )}
-            active={getNavItemActivation(['me', 'account'], location.pathname)}
+            active={getNavItemActivation(
+              [HOMEPAGE_PATHNAME, 'account'],
+              location.pathname
+            )}
           >
             <AccountNavSubItem
               orgs={orgs}
@@ -148,34 +153,29 @@ class SideNav extends PureComponent<Props, State> {
           )}
           active={getNavItemActivation(['tasks'], location.pathname)}
         />
-        <FeatureFlag name="alerting">
-          <NavMenu.Item
+        <NavMenu.Item
+          titleLink={className => (
+            <Link className={className} to={alertingLink}>
+              Monitoring & Alerting
+            </Link>
+          )}
+          iconLink={className => (
+            <Link to={alertingLink} className={className}>
+              <Icon glyph={IconFont.Bell} />
+            </Link>
+          )}
+          active={getNavItemActivation(['alerting'], location.pathname)}
+        >
+          <NavMenu.SubItem
             titleLink={className => (
-              <Link className={className} to={alertingLink}>
-                Monitoring & Alerting
+              <Link to={alertHistoryLink} className={className}>
+                History
               </Link>
             )}
-            iconLink={className => (
-              <Link to={alertingLink} className={className}>
-                <Icon glyph={IconFont.Bell} />
-              </Link>
-            )}
-            active={getNavItemActivation(['alerting'], location.pathname)}
-          >
-            <NavMenu.SubItem
-              titleLink={className => (
-                <Link to={alertHistoryLink} className={className}>
-                  History
-                </Link>
-              )}
-              active={getNavItemActivation(
-                ['alert-history'],
-                location.pathname
-              )}
-              key="alert-history"
-            />
-          </NavMenu.Item>
-        </FeatureFlag>
+            active={getNavItemActivation(['alert-history'], location.pathname)}
+            key="alert-history"
+          />
+        </NavMenu.Item>
         <NavMenu.Item
           titleLink={className => (
             <Link className={className} to={loadDataLink}>
@@ -227,20 +227,18 @@ class SideNav extends PureComponent<Props, State> {
             active={getNavItemActivation(['tokens'], location.pathname)}
             key="tokens"
           />
-          <FeatureFlag name="clientLibrariesPage">
-            <NavMenu.SubItem
-              titleLink={className => (
-                <Link to={clientLibrariesLink} className={className}>
-                  Client Libraries
-                </Link>
-              )}
-              active={getNavItemActivation(
-                ['client-libraries'],
-                location.pathname
-              )}
-              key="client-libraries"
-            />
-          </FeatureFlag>
+          <NavMenu.SubItem
+            titleLink={className => (
+              <Link to={clientLibrariesLink} className={className}>
+                Client Libraries
+              </Link>
+            )}
+            active={getNavItemActivation(
+              ['client-libraries'],
+              location.pathname
+            )}
+            key="client-libraries"
+          />
         </NavMenu.Item>
         <NavMenu.Item
           titleLink={className => (
@@ -255,15 +253,17 @@ class SideNav extends PureComponent<Props, State> {
           )}
           active={getNavItemActivation(['settings'], location.pathname)}
         >
-          <NavMenu.SubItem
-            titleLink={className => (
-              <Link to={membersLink} className={className}>
-                Members
-              </Link>
-            )}
-            active={getNavItemActivation(['members'], location.pathname)}
-            key="members"
-          />
+          <CloudExclude>
+            <NavMenu.SubItem
+              titleLink={className => (
+                <Link to={membersLink} className={className}>
+                  Members
+                </Link>
+              )}
+              active={getNavItemActivation(['members'], location.pathname)}
+              key="members"
+            />
+          </CloudExclude>
           <NavMenu.SubItem
             titleLink={className => (
               <Link to={variablesLink} className={className}>

@@ -1,3 +1,6 @@
+// Libraries
+import {get, isEmpty} from 'lodash'
+
 // Actions
 import {loadBuckets} from 'src/timeMachine/actions/queryBuilder'
 import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
@@ -25,10 +28,15 @@ import {
   CheckType,
   Threshold,
   CheckStatusLevel,
+  XYViewProperties,
+  GetState,
 } from 'src/types'
 import {Color} from 'src/types/colors'
 import {HistogramPosition} from '@influxdata/giraffe'
 import {RemoteDataState} from '@influxdata/clockface'
+import {createView} from 'src/shared/utils/view'
+import {setValues} from 'src/variables/actions'
+import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
 
 export type Action =
   | QueryBuilderAction
@@ -64,6 +72,7 @@ export type Action =
   | EditActiveQueryWithBuilderAction
   | UpdateActiveQueryNameAction
   | SetFieldOptionsAction
+  | UpdateFieldOptionAction
   | SetTableOptionsAction
   | SetTimeFormatAction
   | SetXColumnAction
@@ -458,6 +467,20 @@ export const setFieldOptions = (
   payload: {fieldOptions},
 })
 
+interface UpdateFieldOptionAction {
+  type: 'UPDATE_FIELD_OPTION'
+  payload: {
+    option: FieldOption
+  }
+}
+
+export const updateFieldOption = (
+  option: FieldOption
+): UpdateFieldOptionAction => ({
+  type: 'UPDATE_FIELD_OPTION',
+  payload: {option},
+})
+
 interface SetTableOptionsAction {
   type: 'SET_TABLE_OPTIONS'
   payload: {
@@ -642,3 +665,26 @@ export const removeCheckThreshold = (level: CheckStatusLevel) => ({
   type: 'REMOVE_CHECK_THRESHOLD' as 'REMOVE_CHECK_THRESHOLD',
   payload: {level},
 })
+
+export const loadNewVEO = (dashboardID: string) => (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+): void => {
+  const state = getState()
+
+  const timeRange = getTimeRangeByDashboardID(state.ranges, dashboardID)
+
+  dispatch(
+    setActiveTimeMachine('veo', {
+      view: createView<XYViewProperties>('xy'),
+      timeRange,
+    })
+  )
+
+  const values = get(getState(), `variables.values.${dashboardID}.values`, {})
+
+  if (!isEmpty(values)) {
+    dispatch(setValues('veo', RemoteDataState.Done, values))
+  }
+  // no need to refresh variable values since there is no query in a new view
+}

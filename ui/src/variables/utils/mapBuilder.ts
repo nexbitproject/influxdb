@@ -17,7 +17,7 @@ export const csvToMap = (csv: string): MapResult => {
   }
 
   const keys = new Set<string>()
-  let values = {}
+  const values = {}
 
   for (const arr of templateValuesData) {
     if (arr.length === 2 || (arr.length === 3 && arr[2] === '')) {
@@ -36,7 +36,7 @@ export const csvToMap = (csv: string): MapResult => {
   return {values, errors}
 }
 
-export const trimAndRemoveQuotes = elt => {
+export const trimAndRemoveQuotes = (elt: string): string => {
   const trimmed = elt.trim()
   const dequoted = trimmed.replace(/(^")|("$)/g, '')
 

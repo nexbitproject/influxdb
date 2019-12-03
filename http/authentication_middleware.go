@@ -2,13 +2,15 @@ package http
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
-	"github.com/julienschmidt/httprouter"
+	"github.com/influxdata/influxdb/jsonweb"
 	"go.uber.org/zap"
 )
 
@@ -19,6 +21,8 @@ type AuthenticationHandler struct {
 
 	AuthorizationService platform.AuthorizationService
 	SessionService       platform.SessionService
+	UserService          platform.UserService
+	TokenParser          *jsonweb.TokenParser
 	SessionRenewDisabled bool
 
 	// This is only really used for it's lookup method the specific http
@@ -34,6 +38,7 @@ func NewAuthenticationHandler(h platform.HTTPErrorHandler) *AuthenticationHandle
 		Logger:           zap.NewNop(),
 		HTTPErrorHandler: h,
 		Handler:          http.DefaultServeMux,
+		TokenParser:      jsonweb.NewTokenParser(jsonweb.EmptyKeyStore),
 		noAuthRouter:     httprouter.New(),
 	}
 }
@@ -65,6 +70,11 @@ func ProbeAuthScheme(r *http.Request) (string, error) {
 	return sessionAuthScheme, nil
 }
 
+func (h *AuthenticationHandler) unauthorized(ctx context.Context, w http.ResponseWriter, err error) {
+	h.Logger.Info("unauthorized", zap.Error(err))
+	UnauthorizedError(ctx, h, w)
+}
+
 // ServeHTTP extracts the session or token from the http request and places the resulting authorizer on the request context.
 func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if handler, _, _ := h.noAuthRouter.Lookup(r.Method, r.URL.Path); handler != nil {
@@ -75,64 +85,94 @@ func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	scheme, err := ProbeAuthScheme(r)
 	if err != nil {
-		UnauthorizedError(ctx, h, w)
+		h.unauthorized(ctx, w, err)
 		return
 	}
 
+	var auth platform.Authorizer
 	switch scheme {
 	case tokenAuthScheme:
-		ctx, err = h.extractAuthorization(ctx, r)
-		if err != nil {
-			break
-		}
-		r = r.WithContext(ctx)
-		h.Handler.ServeHTTP(w, r)
-		return
+		auth, err = h.extractAuthorization(ctx, r)
 	case sessionAuthScheme:
-		ctx, err = h.extractSession(ctx, r)
-		if err != nil {
-			break
-		}
-		r = r.WithContext(ctx)
-		h.Handler.ServeHTTP(w, r)
+		auth, err = h.extractSession(ctx, r)
+	default:
+		// TODO: this error will be nil if it gets here, this should be remedied with some
+		//  sentinel error I'm thinking
+		err = errors.New("invalid auth scheme")
+	}
+	if err != nil {
+		h.unauthorized(ctx, w, err)
 		return
 	}
 
-	UnauthorizedError(ctx, h, w)
+	// jwt based auth is permission based rather than identity based
+	// and therefor has no associated user. if the user ID is invalid
+	// disregard the user active check
+	if auth.GetUserID().Valid() {
+		if err = h.isUserActive(ctx, auth); err != nil {
+			InactiveUserError(ctx, h, w)
+			return
+		}
+	}
+
+	ctx = platcontext.SetAuthorizer(ctx, auth)
+
+	h.Handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-func (h *AuthenticationHandler) extractAuthorization(ctx context.Context, r *http.Request) (context.Context, error) {
+func (h *AuthenticationHandler) isUserActive(ctx context.Context, auth platform.Authorizer) error {
+	u, err := h.UserService.FindUserByID(ctx, auth.GetUserID())
+	if err != nil {
+		return err
+	}
+
+	if u.Status != "inactive" {
+		return nil
+	}
+
+	return &platform.Error{Code: platform.EForbidden, Msg: "User is inactive"}
+}
+
+func (h *AuthenticationHandler) extractAuthorization(ctx context.Context, r *http.Request) (platform.Authorizer, error) {
 	t, err := GetToken(r)
 	if err != nil {
-		return ctx, err
+		return nil, err
 	}
 
-	a, err := h.AuthorizationService.FindAuthorizationByToken(ctx, t)
-	if err != nil {
-		return ctx, err
+	token, err := h.TokenParser.Parse(t)
+	if err == nil {
+		return token, nil
 	}
 
-	return platcontext.SetAuthorizer(ctx, a), nil
+	// if the error returned signifies ths token is
+	// not a well formed JWT then use it as a lookup
+	// key for its associated authorization
+	// otherwise return the error
+	if !jsonweb.IsMalformedError(err) {
+		return nil, err
+	}
+
+	return h.AuthorizationService.FindAuthorizationByToken(ctx, t)
 }
 
-func (h *AuthenticationHandler) extractSession(ctx context.Context, r *http.Request) (context.Context, error) {
+func (h *AuthenticationHandler) extractSession(ctx context.Context, r *http.Request) (*platform.Session, error) {
 	k, err := decodeCookieSession(ctx, r)
 	if err != nil {
-		return ctx, err
+		return nil, err
 	}
 
 	s, err := h.SessionService.FindSession(ctx, k)
 	if err != nil {
-		return ctx, err
+		return nil, err
 	}
 
 	if !h.SessionRenewDisabled {
 		// if the session is not expired, renew the session
 		err = h.SessionService.RenewSession(ctx, s, time.Now().Add(platform.RenewSessionTime))
 		if err != nil {
-			return ctx, err
+			return nil, err
 		}
 	}
 
-	return platcontext.SetAuthorizer(ctx, s), nil
+	return s, err
 }

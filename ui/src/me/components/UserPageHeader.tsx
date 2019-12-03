@@ -1,8 +1,15 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {CLOUD} from 'src/shared/constants'
 
 // Components
-import {Page} from '@influxdata/clockface'
+import {
+  Page,
+  FlexBox,
+  FlexDirection,
+  AlignItems,
+  ComponentSize,
+} from '@influxdata/clockface'
 
 // Constants
 import {generateRandomGreeting} from 'src/me/constants'
@@ -16,8 +23,16 @@ export default class UserPageHeader extends PureComponent<Props> {
   public render() {
     return (
       <Page.Header fullWidth={false}>
-        <Page.Header.Left>{this.title}</Page.Header.Left>
-        <Page.Header.Right />
+        <Page.HeaderLeft>
+          <FlexBox
+            direction={FlexDirection.Column}
+            alignItems={AlignItems.FlexStart}
+            margin={ComponentSize.Small}
+          >
+            {this.title}
+          </FlexBox>
+        </Page.HeaderLeft>
+        <Page.HeaderRight />
       </Page.Header>
     )
   }
@@ -29,7 +44,7 @@ export default class UserPageHeader extends PureComponent<Props> {
 
     let title = ''
 
-    if (process.env.CLOUD === 'true') {
+    if (CLOUD) {
       title = `${text}, ${userName}! Welcome to InfluxDB Cloud!`
     } else {
       title = `${text}, ${userName}! Welcome to ${orgName}!`
@@ -37,6 +52,11 @@ export default class UserPageHeader extends PureComponent<Props> {
 
     const altText = `That's how you say hello in ${language}`
 
-    return <Page.Title title={title} altText={altText} />
+    return (
+      <>
+        <Page.Title title={title} />
+        <Page.SubTitle title={altText} />
+      </>
+    )
   }
 }

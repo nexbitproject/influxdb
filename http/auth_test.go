@@ -15,9 +15,10 @@ import (
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
-	"github.com/julienschmidt/httprouter"
+	"github.com/influxdata/httprouter"
 )
 
 // NewMockAuthorizationBackend returns a AuthorizationBackend with mock services.
@@ -120,7 +121,9 @@ func TestService_handleGetAuthorizations(t *testing.T) {
       "status": "",
 	  "token": "hello",
 	  "description": "t1",
-	  "permissions": %s
+		"permissions": %s,
+		"createdAt": "0001-01-01T00:00:00Z",
+		"updatedAt": "0001-01-01T00:00:00Z"
     },
     {
       "links": {
@@ -135,7 +138,9 @@ func TestService_handleGetAuthorizations(t *testing.T) {
       "status": "",
       "token": "example",
 	  "description": "t2",
-	  "permissions": %s
+		"permissions": %s,
+		"createdAt": "0001-01-01T00:00:00Z",
+		"updatedAt": "0001-01-01T00:00:00Z"
     }
   ]
 }
@@ -212,7 +217,9 @@ func TestService_handleGetAuthorizations(t *testing.T) {
       "status": "",
 	  "token": "hello",
 	  "description": "t1",
-	  "permissions": %s
+		"permissions": %s,
+		"createdAt": "0001-01-01T00:00:00Z",
+		"updatedAt": "0001-01-01T00:00:00Z"
     }
   ]
 }
@@ -288,7 +295,9 @@ func TestService_handleGetAuthorizations(t *testing.T) {
       "status": "",
 	  "token": "hello",
 	  "description": "t1",
-	  "permissions": %s
+		"permissions": %s,
+		"createdAt": "0001-01-01T00:00:00Z",
+		"updatedAt": "0001-01-01T00:00:00Z"
     }
   ]
 }
@@ -451,6 +460,8 @@ func TestService_handleGetAuthorization(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `
 {
+	"createdAt": "0001-01-01T00:00:00Z",
+	"updatedAt": "0001-01-01T00:00:00Z",
   "description": "",
   "id": "020f755c3c082000",
   "links": {
@@ -653,6 +664,8 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `
 {
+	"createdAt": "0001-01-01T00:00:00Z",
+	"updatedAt": "0001-01-01T00:00:00Z",
   "description": "only read dashboards sucka",
   "id": "020f755c3c082000",
   "links": {
@@ -856,9 +869,10 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 		t.Skip("HTTP authorization service does not required a user id on the authentication struct.  We get the user from the session token.")
 	}
 
-	svc := inmem.NewService()
+	svc := kv.NewService(inmem.NewKVStore())
 	svc.IDGenerator = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
+	svc.TimeGenerator = f.TimeGenerator
 
 	ctx := context.Background()
 
@@ -884,10 +898,16 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 		token = a.Token
 	}
 
+	mus := &mock.UserService{
+		FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+			return &platform.User{}, nil
+		},
+	}
+
 	authorizationBackend := NewMockAuthorizationBackend()
 	authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
 	authorizationBackend.AuthorizationService = svc
-	authorizationBackend.UserService = svc
+	authorizationBackend.UserService = mus
 	authorizationBackend.OrganizationService = svc
 	authorizationBackend.LookupService = &mock.LookupService{
 		NameFn: func(ctx context.Context, resource platform.ResourceType, id platform.ID) (string, error) {
@@ -905,6 +925,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	authN := NewAuthenticationHandler(ErrorHandler(0))
 	authN.AuthorizationService = svc
 	authN.Handler = authZ
+	authN.UserService = mus
 
 	server := httptest.NewServer(authN)
 	client := AuthorizationService{

@@ -104,7 +104,7 @@ func inmemTaskService() platform.TaskService {
 				return nil, platform.ErrTaskNotFound
 			}
 
-			return &platform.Run{ID: id, TaskID: t.ID, ScheduledFor: time.Unix(scheduledFor, 0).Format(time.RFC3339)}, nil
+			return &platform.Run{ID: id, TaskID: t.ID, ScheduledFor: time.Unix(scheduledFor, 0)}, nil
 		},
 	}
 	return ts
@@ -257,7 +257,7 @@ func TestCoordinatingTaskService_ClaimTaskUpdatesLatestCompleted(t *testing.T) {
 
 	select {
 	case claimedTask := <-cchan:
-		if claimedTask.LatestCompleted != latest.UTC().Format(time.RFC3339) {
+		if claimedTask.LatestCompleted != latest.UTC() {
 			t.Fatal("failed up update latest completed in claimed task")
 		}
 	case <-time.After(time.Second):

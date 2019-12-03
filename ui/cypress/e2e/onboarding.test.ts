@@ -93,7 +93,7 @@ describe('Onboarding', () => {
     cy.wait('@orgSetup')
 
     cy.get('@orgSetup').then(xhr => {
-      let orgId: string = xhr.responseBody.org.id
+      const orgId: string = xhr.responseBody.org.id
 
       //wait for new page to load
       cy.location('pathname').should('include', 'onboarding/2')
@@ -139,7 +139,7 @@ describe('Onboarding', () => {
     cy.wait('@orgSetup')
 
     cy.get('@orgSetup').then(xhr => {
-      let orgId: string = xhr.responseBody.org.id
+      const orgId: string = xhr.responseBody.org.id
 
       //wait for new page to load
       cy.location('pathname').should('include', 'onboarding/2')
@@ -178,7 +178,7 @@ describe('Onboarding', () => {
     cy.wait('@orgSetup')
 
     cy.get('@orgSetup').then(xhr => {
-      let orgId: string = xhr.responseBody.org.id
+      const orgId: string = xhr.responseBody.org.id
       //wait for new page to load
 
       cy.location('pathname').should('include', 'onboarding/2')
@@ -215,8 +215,6 @@ describe('Onboarding', () => {
       'have.text',
       'Passwords do not match'
     )
-
-    cy.getByTestID('input-error').should('have.class', 'alert-triangle')
 
     cy.getByTestID('input-field--orgname').type(user.org)
     cy.getByTestID('input-field--bucketname').type(user.bucket)

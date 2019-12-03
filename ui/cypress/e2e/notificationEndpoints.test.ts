@@ -1,4 +1,8 @@
-import {NotificationEndpoint, SlackNotificationEndpoint} from '../../src/types'
+import {
+  NotificationEndpoint,
+  SlackNotificationEndpoint,
+  Organization,
+} from '../../src/types'
 
 describe('Notification Endpoints', () => {
   const endpoint: NotificationEndpoint = {
@@ -53,6 +57,60 @@ describe('Notification Endpoints', () => {
           cy.contains('Slack')
         })
 
+        cy.getByTestID('endpoint--dropdown-item http').click()
+
+        cy.getByTestID('endpoint--dropdown--button').within(() => {
+          cy.contains('HTTP')
+        })
+      })
+
+    cy.getByTestID('http-url')
+      .clear()
+      .type('http.url.us')
+      .should('have.value', 'http.url.us')
+
+    cy.getByTestID('endpoint-change--dropdown')
+      .click()
+      .within(() => {
+        cy.getByTestID('endpoint--dropdown--button').within(() => {
+          cy.contains('HTTP')
+        })
+
+        cy.getByTestID('endpoint--dropdown-item slack').click()
+
+        cy.getByTestID('endpoint--dropdown--button').within(() => {
+          cy.contains('Slack')
+        })
+      })
+
+    cy.getByTestID('slack-url')
+      .clear()
+      .type('slack.url.us')
+      .should('have.value', 'slack.url.us')
+
+    cy.getByTestID('endpoint-save--button').click()
+
+    cy.getByTestID(`endpoint-card ${name}`).should('exist')
+    cy.getByTestID('endpoint--overlay').should('not.be.visible')
+  })
+
+  it('can create a notification endpoint pager duty with client url', () => {
+    const name = 'Pagerduty example'
+
+    cy.getByTestID('create-endpoint').click()
+
+    cy.getByTestID('endpoint-name--input')
+      .clear()
+      .type(name)
+      .should('have.value', name)
+
+    cy.getByTestID('endpoint-change--dropdown')
+      .click()
+      .within(() => {
+        cy.getByTestID('endpoint--dropdown--button').within(() => {
+          cy.contains('Slack')
+        })
+
         cy.getByTestID('endpoint--dropdown-item pagerduty').click()
 
         cy.getByTestID('endpoint--dropdown--button').within(() => {
@@ -69,24 +127,41 @@ describe('Notification Endpoints', () => {
       .type('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9')
       .should('have.value', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9')
 
+    cy.getByTestID('endpoint-save--button').click()
+
+    cy.getByTestID(`endpoint-card ${name}`).should('exist')
+    cy.getByTestID('endpoint--overlay').should('not.be.visible')
+  })
+
+  it('can create a notification endpoint pager duty without client url', () => {
+    const name = 'Pagerduty url none'
+
+    cy.getByTestID('create-endpoint').click()
+
+    cy.getByTestID('endpoint-name--input')
+      .clear()
+      .type(name)
+      .should('have.value', name)
+
     cy.getByTestID('endpoint-change--dropdown')
       .click()
       .within(() => {
         cy.getByTestID('endpoint--dropdown--button').within(() => {
-          cy.contains('Pagerduty')
+          cy.contains('Slack')
         })
 
-        cy.getByTestID('endpoint--dropdown-item slack').click()
+        cy.getByTestID('endpoint--dropdown-item pagerduty').click()
 
         cy.getByTestID('endpoint--dropdown--button').within(() => {
-          cy.contains('Slack')
+          cy.contains('Pagerduty')
         })
       })
 
-    cy.getByTestID('slack-url')
-      .clear()
-      .type('slack.url.us')
-      .should('have.value', 'slack.url.us')
+    cy.getByTestID('pagerduty-url').clear()
+
+    cy.getByTestID('pagerduty-routing-key')
+      .type('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9')
+      .should('have.value', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9')
 
     cy.getByTestID('endpoint-save--button').click()
 
@@ -146,6 +221,39 @@ describe('Notification Endpoints', () => {
 
       cy.getByTestID(`endpoint-card ${newName}`).should('exist')
       cy.getByTestID('endpoint--overlay').should('not.be.visible')
+    })
+  })
+
+  it('can view history of endpoint', () => {
+    cy.get<SlackNotificationEndpoint>('@endpoint').then(() => {
+      cy.getByTestID(`context-history-menu`).click()
+      cy.getByTestID(`context-history-task`).click()
+      cy.getByTestID(`alert-history-title`).should('exist')
+    })
+  })
+
+  it('can delete endpoint', () => {
+    cy.get<SlackNotificationEndpoint>('@endpoint').then(() => {
+      cy.getByTestID(`context-delete-menu`).click()
+      cy.getByTestID(`context-delete-task`).click()
+      cy.getByTestID(`endpoint-card--name ${name}`).should('not.exist')
+    })
+  })
+
+  describe('When a endpoint does not exist', () => {
+    it('should route the user to the alerting index page', () => {
+      const nonexistentID = '0495f0d1247ab600'
+
+      // visitng the endpoint edit overlay
+      cy.get('@org').then(({id}: Organization) => {
+        cy.fixture('routes').then(({orgs, alerting, endpoints}) => {
+          cy.visit(`${orgs}/${id}${alerting}${endpoints}/${nonexistentID}/edit`)
+          cy.url().should(
+            'eq',
+            `${Cypress.config().baseUrl}${orgs}/${id}${alerting}`
+          )
+        })
+      })
     })
   })
 })

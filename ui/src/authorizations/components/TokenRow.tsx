@@ -41,7 +41,7 @@ class TokenRow extends PureComponent<Props> {
     const {description} = this.props.auth
 
     return (
-      <IndexList.Row>
+      <IndexList.Row brighten={true}>
         <IndexList.Cell>
           <EditableName
             name={description}
@@ -104,9 +104,9 @@ class TokenRow extends PureComponent<Props> {
     onClickDescription(auth.id)
   }
 
-  private handleUpdateName = async (value: string) => {
+  private handleUpdateName = (value: string) => {
     const {auth, onUpdate} = this.props
-    await onUpdate({...auth, description: value})
+    onUpdate({...auth, description: value})
   }
 }
 

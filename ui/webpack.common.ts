@@ -1,16 +1,23 @@
 const path = require('path')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
+const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
+const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const {CleanWebpackPlugin} = require('clean-webpack-plugin')
 const webpack = require('webpack')
-const GIT_SHA = require('child_process')
-  .execSync('git rev-parse HEAD')
-  .toString()
+const {
+  GIT_SHA,
+  STATIC_DIRECTORY,
+  BASE_PATH,
+  API_BASE_PATH,
+} = require('./src/utils/env')
 
 module.exports = {
   context: __dirname,
   output: {
     path: path.resolve(__dirname, 'build'),
-    sourceMapFilename: '[name].js.map',
+    publicPath: BASE_PATH,
+    webassemblyModuleFilename: `${STATIC_DIRECTORY}[modulehash:10].wasm`,
+    sourceMapFilename: `${STATIC_DIRECTORY}[name].js.map`,
   },
   entry: {
     app: './src/bootstrap.ts',
@@ -18,6 +25,7 @@ module.exports = {
   resolve: {
     alias: {
       src: path.resolve(__dirname, 'src'),
+      react: path.resolve('./node_modules/react'),
     },
     extensions: ['.tsx', '.ts', '.js', '.wasm'],
   },
@@ -25,7 +33,8 @@ module.exports = {
     rules: [
       {
         test: /\.wasm$/,
-        type: 'webassembly/experimental',
+        loader: "file-loader",
+        type: "javascript/auto",
       },
       {
         test: /\.tsx?$/,
@@ -39,12 +48,36 @@ module.exports = {
         ],
       },
       {
+        test: /\.s?css$/i,
+        use: [
+          MiniCssExtractPlugin.loader,
+          'css-loader',
+          {
+            loader: 'sass-loader',
+            options: {
+              implementation: require('sass'),
+              hmr: true,
+            },
+          },
+        ],
+      },
+      {
         test: /\.(png|svg|jpg|gif)$/,
-        use: ['file-loader'],
+        use: [{
+          loader: 'file-loader',
+          options: {
+            name: `${STATIC_DIRECTORY}[contenthash:10].[ext]`
+          }
+        }],
       },
       {
         test: /\.(woff|woff2|eot|ttf|otf)$/,
-        use: ['file-loader'],
+        use: [{
+          loader: 'file-loader',
+          options: {
+            name: `${STATIC_DIRECTORY}[contenthash:10].[ext]`
+          }
+        }],
       },
     ],
   },
@@ -55,9 +88,29 @@ module.exports = {
       template: './assets/index.html',
       favicon: './assets/images/favicon.ico',
       inject: 'body',
+      minify: {
+        collapseWhitespace: true,
+        removeComments: true,
+        removeRedundantAttributes: true,
+        removeScriptTypeAttributes: true,
+        removeStyleLinkTypeAttributes: true,
+        useShortDoctype: true,
+      },
+      base: BASE_PATH.slice(0, -1),
+      header: process.env.INJECT_HEADER || '',
+      body: process.env.INJECT_BODY || '',
     }),
+    new MiniCssExtractPlugin({
+      filename: `${STATIC_DIRECTORY}[contenthash:10].css`,
+      chunkFilename: `${STATIC_DIRECTORY}[id].[contenthash:10].css`,
+    }),
+    new webpack.DllReferencePlugin({
+      context: path.join(__dirname, 'build'),
+      manifest: require('./build/vendor-manifest.json'),
+    }),
+    new ForkTsCheckerWebpackPlugin(),
     new webpack.ProgressPlugin(),
-    new webpack.EnvironmentPlugin({...process.env, GIT_SHA}),
+    new webpack.EnvironmentPlugin({...process.env, GIT_SHA, API_PREFIX: API_BASE_PATH, STATIC_PREFIX: BASE_PATH}),
   ],
   stats: {
     colors: true,

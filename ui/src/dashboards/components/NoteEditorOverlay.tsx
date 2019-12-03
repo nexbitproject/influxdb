@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {get} from 'lodash'
 
 // Components
 import NoteEditor from 'src/dashboards/components/NoteEditor'
@@ -30,9 +30,15 @@ import {savingNoteFailed} from 'src/shared/copy/notifications'
 import {RemoteDataState} from 'src/types'
 import {AppState, NoteEditorMode} from 'src/types'
 
+interface OwnProps {
+  onClose: () => void
+}
+
 interface StateProps {
   mode: NoteEditorMode
   viewsStatus: RemoteDataState
+  cellID?: string
+  dashboardID: string
 }
 
 interface DispatchProps {
@@ -43,14 +49,7 @@ interface DispatchProps {
   loadNote: typeof loadNote
 }
 
-interface RouterProps extends WithRouterProps {
-  params: {
-    dashboardID: string
-    cellID?: string
-  }
-}
-
-type Props = StateProps & DispatchProps & RouterProps
+type Props = OwnProps & StateProps & DispatchProps
 
 interface State {
   savingStatus: RemoteDataState
@@ -62,9 +61,7 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
   }
 
   componentDidMount() {
-    const {
-      params: {cellID},
-    } = this.props
+    const {cellID} = this.props
 
     if (cellID) {
       this.props.loadNote(cellID)
@@ -74,10 +71,7 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
   }
 
   componentDidUpdate(prevProps: Props) {
-    const {
-      params: {cellID},
-      viewsStatus,
-    } = this.props
+    const {cellID, viewsStatus} = this.props
 
     if (
       prevProps.viewsStatus !== RemoteDataState.Done &&
@@ -92,32 +86,53 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
   }
 
   public render() {
+    const {dashboardID} = this.props
+
+    if (!dashboardID) {
+      return (
+        <Overlay.Container maxWidth={360}>
+          <Overlay.Header title="Oh no!" onDismiss={this.handleDismiss} />
+          <Overlay.Body>
+            <h5>
+              This page does not allow creation or editing of notes, better head{' '}
+              to a dashboard to do that.
+            </h5>
+          </Overlay.Body>
+        </Overlay.Container>
+      )
+    }
+
     return (
-      <div className="note-editor-container">
-        <Overlay visible={true}>
-          <Overlay.Container maxWidth={900}>
-            <Overlay.Header title={this.overlayTitle} onDismiss={this.close} />
-            <Overlay.Body>
-              <SpinnerContainer
-                loading={this.props.viewsStatus}
-                spinnerComponent={<TechnoSpinner />}
-              >
-                <NoteEditor />
-              </SpinnerContainer>
-            </Overlay.Body>
-            <Overlay.Footer>
-              <Button text="Cancel" onClick={this.close} />
-              <Button
-                text="Save"
-                color={ComponentColor.Success}
-                status={this.saveButtonStatus}
-                onClick={this.handleSave}
-              />
-            </Overlay.Footer>
-          </Overlay.Container>
-        </Overlay>
-      </div>
+      <Overlay.Container maxWidth={900}>
+        <Overlay.Header
+          title={this.overlayTitle}
+          onDismiss={this.handleDismiss}
+        />
+        <Overlay.Body>
+          <SpinnerContainer
+            loading={this.props.viewsStatus}
+            spinnerComponent={<TechnoSpinner />}
+          >
+            <NoteEditor />
+          </SpinnerContainer>
+        </Overlay.Body>
+        <Overlay.Footer>
+          <Button text="Cancel" onClick={this.handleDismiss} />
+          <Button
+            text="Save"
+            color={ComponentColor.Success}
+            status={this.saveButtonStatus}
+            onClick={this.handleSave}
+          />
+        </Overlay.Footer>
+      </Overlay.Container>
     )
+  }
+
+  private handleDismiss = (): void => {
+    const {onClose} = this.props
+
+    onClose()
   }
 
   private get overlayTitle(): string {
@@ -144,9 +159,10 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
     return ComponentStatus.Default
   }
 
-  private handleSave = async () => {
+  private handleSave = () => {
     const {
-      params: {cellID, dashboardID},
+      cellID,
+      dashboardID,
       onCreateNoteCell,
       onUpdateViewNote,
       onNotify,
@@ -156,28 +172,28 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
 
     try {
       if (cellID) {
-        await onUpdateViewNote(cellID)
+        onUpdateViewNote(cellID)
       } else {
-        await onCreateNoteCell(dashboardID)
+        onCreateNoteCell(dashboardID)
       }
-      this.close()
+      this.handleDismiss()
     } catch (error) {
       onNotify(savingNoteFailed(error.message))
       console.error(error)
       this.setState({savingStatus: RemoteDataState.Error})
     }
   }
-
-  private close = () => {
-    this.props.router.goBack()
-  }
 }
 
-const mstp = ({noteEditor, views}: AppState): StateProps => {
+const mstp = ({noteEditor, views, overlays}: AppState): StateProps => {
+  const {params} = overlays
   const {mode} = noteEditor
   const {status} = views
 
-  return {mode, viewsStatus: status}
+  const cellID = get(params, 'cellID', undefined)
+  const dashboardID = get(params, 'dashboardID', undefined)
+
+  return {mode, viewsStatus: status, cellID, dashboardID}
 }
 
 const mdtp = {
@@ -188,7 +204,7 @@ const mdtp = {
   loadNote,
 }
 
-export default connect<StateProps, DispatchProps, {}>(
+export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter<StateProps & DispatchProps>(NoteEditorOverlay))
+)(NoteEditorOverlay)

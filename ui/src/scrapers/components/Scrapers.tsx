@@ -148,10 +148,9 @@ class Scrapers extends PureComponent<Props, State> {
     if (_.isEmpty(searchTerm)) {
       return (
         <EmptyState size={ComponentSize.Large}>
-          <EmptyState.Text
-            text={`${orgName} does not own any Scrapers , why not create one?`}
-            highlightWords={['Scrapers']}
-          />
+          <EmptyState.Text>
+            {`${orgName}`} does not own any <b>Scrapers</b>, why not create one?
+          </EmptyState.Text>
           {this.createScraperButton('create-scraper-button-empty')}
         </EmptyState>
       )
@@ -159,22 +158,22 @@ class Scrapers extends PureComponent<Props, State> {
 
     return (
       <EmptyState size={ComponentSize.Large}>
-        <EmptyState.Text text="No Scrapers match your query" />
+        <EmptyState.Text>No Scrapers match your query</EmptyState.Text>
       </EmptyState>
     )
   }
 
-  private handleUpdateScraper = async (scraper: ScraperTargetResponse) => {
+  private handleUpdateScraper = (scraper: ScraperTargetResponse) => {
     const {onUpdateScraper} = this.props
     onUpdateScraper(scraper)
   }
 
-  private handleDeleteScraper = async (scraper: ScraperTargetResponse) => {
+  private handleDeleteScraper = (scraper: ScraperTargetResponse) => {
     const {onDeleteScraper} = this.props
     onDeleteScraper(scraper)
   }
 
-  private handleShowOverlay = (): void => {
+  private handleShowOverlay = () => {
     const {
       router,
       params: {orgID},
@@ -187,7 +186,7 @@ class Scrapers extends PureComponent<Props, State> {
     router.push(`/orgs/${orgID}/load-data/scrapers/new`)
   }
 
-  private handleFilterChange = (searchTerm: string): void => {
+  private handleFilterChange = (searchTerm: string) => {
     this.setState({searchTerm})
   }
 }

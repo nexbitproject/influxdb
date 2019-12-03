@@ -75,7 +75,9 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
         }
         labels={this.labels}
         metaData={[
-          <>Bucket: {bucket}</>,
+          <span key={`bucket-key--${collector.id}`} data-testid="bucket-name">
+            Bucket: {bucket}
+          </span>,
           <>
             <Link
               to={`/orgs/${org.id}/load-data/telegrafs/${
@@ -102,10 +104,10 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleUpdateName = async (name: string) => {
+  private handleUpdateName = (name: string) => {
     const {onUpdate, collector} = this.props
 
-    await onUpdate({...collector, name})
+    onUpdate({...collector, name})
   }
 
   private handleUpdateDescription = (description: string) => {
@@ -130,25 +132,21 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleAddLabel = (label: ILabel): void => {
+  private handleAddLabel = async (label: ILabel) => {
     const {collector, onAddLabels} = this.props
 
-    onAddLabels(collector.id, [label])
+    await onAddLabels(collector.id, [label])
   }
 
-  private handleRemoveLabel = (label: ILabel): void => {
+  private handleRemoveLabel = async (label: ILabel) => {
     const {collector, onRemoveLabels} = this.props
 
-    onRemoveLabels(collector.id, [label])
+    await onRemoveLabels(collector.id, [label])
   }
 
-  private handleCreateLabel = async (label: ILabel): Promise<void> => {
-    try {
-      const {name, properties} = label
-      await this.props.onCreateLabel(name, properties)
-    } catch (err) {
-      throw err
-    }
+  private handleCreateLabel = async (label: ILabel) => {
+    const {name, properties} = label
+    await this.props.onCreateLabel(name, properties)
   }
 
   private handleNameClick = (e: MouseEvent) => {

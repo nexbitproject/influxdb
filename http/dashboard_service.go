@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"path"
 
+	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
 
@@ -168,6 +168,7 @@ func (d dashboardResponse) toPlatform() *platform.Dashboard {
 		ID:             d.ID,
 		OrganizationID: d.OrganizationID,
 		Name:           d.Name,
+		Description:    d.Description,
 		Meta:           d.Meta,
 		Cells:          cells,
 	}
@@ -315,8 +316,6 @@ func newOperationLogEntryResponse(e *platform.OperationLogEntry) *operationLogEn
 // handleGetDashboards returns all dashboards within the store.
 func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("get dashboards request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeGetDashboardsRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -434,8 +433,6 @@ func newGetDashboardsResponse(ctx context.Context, dashboards []*platform.Dashbo
 // handlePostDashboard creates a new dashboard.
 func (h *DashboardHandler) handlePostDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("create dashboard request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodePostDashboardRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -469,8 +466,6 @@ func decodePostDashboardRequest(ctx context.Context, r *http.Request) (*postDash
 // hanldeGetDashboard retrieves a dashboard by ID.
 func (h *DashboardHandler) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("get dashboard request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeGetDashboardRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -524,8 +519,6 @@ func decodeGetDashboardRequest(ctx context.Context, r *http.Request) (*getDashbo
 // hanldeGetDashboardLog retrieves a dashboard log by the dashboards ID.
 func (h *DashboardHandler) handleGetDashboardLog(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("get dashboard log request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeGetDashboardLogRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -580,8 +573,6 @@ func decodeGetDashboardLogRequest(ctx context.Context, r *http.Request) (*getDas
 // handleDeleteDashboard removes a dashboard by ID.
 func (h *DashboardHandler) handleDeleteDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("delete dashboard request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeDeleteDashboardRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -625,8 +616,6 @@ func decodeDeleteDashboardRequest(ctx context.Context, r *http.Request) (*delete
 // handlePatchDashboard updates a dashboard.
 func (h *DashboardHandler) handlePatchDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("update dashboard request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodePatchDashboardRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -744,8 +733,6 @@ func decodePostDashboardCellRequest(ctx context.Context, r *http.Request) (*post
 // handlePostDashboardCell creates a dashboard cell.
 func (h *DashboardHandler) handlePostDashboardCell(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("create dashboard cell request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodePostDashboardCellRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -823,8 +810,6 @@ func decodePutDashboardCellRequest(ctx context.Context, r *http.Request) (*putDa
 // handlePutDashboardCells replaces a dashboards cells.
 func (h *DashboardHandler) handlePutDashboardCells(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("replace dashboard cell request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodePutDashboardCellRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -908,8 +893,6 @@ func decodeGetDashboardCellViewRequest(ctx context.Context, r *http.Request) (*g
 
 func (h *DashboardHandler) handleGetDashboardCellView(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("get dashboard cell view request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeGetDashboardCellViewRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -965,8 +948,6 @@ func decodePatchDashboardCellViewRequest(ctx context.Context, r *http.Request) (
 
 func (h *DashboardHandler) handlePatchDashboardCellView(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("update dashboard cell view request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodePatchDashboardCellViewRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -989,8 +970,6 @@ func (h *DashboardHandler) handlePatchDashboardCellView(w http.ResponseWriter, r
 // handleDeleteDashboardCell deletes a dashboard cell.
 func (h *DashboardHandler) handleDeleteDashboardCell(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("delete dashboard cell request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeDeleteDashboardCellRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -1054,8 +1033,6 @@ func decodePatchDashboardCellRequest(ctx context.Context, r *http.Request) (*pat
 // handlePatchDashboardCell updates a dashboard cell.
 func (h *DashboardHandler) handlePatchDashboardCell(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("update dashboard cell request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodePatchDashboardCellRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -1215,18 +1192,17 @@ func (s *DashboardService) CreateDashboard(ctx context.Context, d *platform.Dash
 // UpdateDashboard updates a single dashboard with changeset.
 // Returns the new dashboard state after update.
 func (s *DashboardService) UpdateDashboard(ctx context.Context, id platform.ID, upd platform.DashboardUpdate) (*platform.Dashboard, error) {
-	//op := s.OpPrefix + platform.OpUpdateDashboard
 	u, err := NewURL(s.Addr, dashboardIDPath(id))
 	if err != nil {
 		return nil, err
 	}
 
-	b, err := json.Marshal(upd)
-	if err != nil {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(upd); err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(b))
+	req, err := http.NewRequest("PATCH", u.String(), &buf)
 	if err != nil {
 		return nil, err
 	}

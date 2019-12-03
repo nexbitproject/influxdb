@@ -11,6 +11,7 @@ import (
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kv"
 	_ "github.com/influxdata/influxdb/query/builtin"
+	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/servicetest"
 )
 
@@ -119,7 +120,25 @@ func TestNextRunDue(t *testing.T) {
 
 	ctx = icontext.SetAuthorizer(ctx, &authz)
 
-	task, err := service.CreateTask(ctx, influxdb.TaskCreate{
+	task1, err := service.CreateTask(ctx, influxdb.TaskCreate{
+		Flux:           `option task = {name: "a task",cron: "0 * * * *", offset: 20s} from(bucket:"test") |> range(start:-1h)`,
+		OrganizationID: o.ID,
+		OwnerID:        u.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	task2, err := service.CreateTask(ctx, influxdb.TaskCreate{
+		Flux:           `option task = {name: "a task",every: 1h, offset: 20s} from(bucket:"test") |> range(start:-1h)`,
+		OrganizationID: o.ID,
+		OwnerID:        u.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	task3, err := service.CreateTask(ctx, influxdb.TaskCreate{
 		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
 		OrganizationID: o.ID,
 		OwnerID:        u.ID,
@@ -128,28 +147,35 @@ func TestNextRunDue(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	nd, err := service.NextDueRun(ctx, task.ID)
-	if err != nil {
-		t.Fatal(err)
+	for _, task := range []*influxdb.Task{task1, task2, task3} {
+		nd, err := service.NextDueRun(ctx, task.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		run, err := service.CreateNextRun(ctx, task.ID, time.Now().Add(time.Hour).Unix())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// +20 to account for the 20 second offset in the flux script
+		oldNextDue := run.Created.Now
+		if task.Offset != 0 {
+			oldNextDue += 20
+		}
+		if oldNextDue != nd {
+			t.Fatalf("expected nextRunDue and created run to match, %d, %d", nd, run.Created.Now)
+		}
+		nd1, err := service.NextDueRun(ctx, task.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if run.NextDue != nd1 {
+			t.Fatalf("expected returned next run to be the same as teh next due after scheduling %d, %d", run.NextDue, nd1)
+		}
 	}
 
-	run, err := service.CreateNextRun(ctx, task.ID, time.Now().Add(time.Hour).Unix())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if run.Created.Now != nd {
-		t.Fatalf("expected nextRunDue and created run to match, %d, %d", nd, run.Created.Now)
-	}
-
-	nd1, err := service.NextDueRun(ctx, task.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if run.NextDue != nd1 {
-		t.Fatalf("expected returned next run to be the same as teh next due after scheduling %d, %d", run.NextDue, nd1)
-	}
 }
 
 func TestRetrieveTaskWithBadAuth(t *testing.T) {
@@ -198,6 +224,7 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
 		OrganizationID: o.ID,
 		OwnerID:        u.ID,
+		Status:         string(backend.TaskActive),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -246,5 +273,15 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 	}
 	if len(tasks) != 1 {
 		t.Fatal("failed to return task")
+	}
+
+	// test status filter
+	active := string(backend.TaskActive)
+	tasksWithActiveFilter, _, err := service.FindTasks(ctx, influxdb.TaskFilter{Status: &active})
+	if err != nil {
+		t.Fatal("could not find tasks")
+	}
+	if len(tasksWithActiveFilter) != 1 {
+		t.Fatal("failed to find active task with filter")
 	}
 }

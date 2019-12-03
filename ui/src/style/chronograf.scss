@@ -28,10 +28,8 @@
 @import 'src/shared/components/views/Markdown.scss';
 @import 'src/shared/components/custom_singular_time/CustomSingularTime.scss';
 @import 'src/onboarding/OnboardingWizard.scss';
-@import 'src/shared/components/question_mark_tooltip/QuestionMarkTooltip.scss';
 @import 'src/shared/components/protoboard_icon/ProtoboardIcon.scss';
 @import 'src/shared/components/columns_options/ColumnsOptions.scss';
-@import 'src/shared/components/InputClickToEdit.scss';
 @import 'src/shared/components/ImportOverlay.scss';
 @import 'src/shared/components/VersionInfo.scss';
 @import 'src/shared/components/WaitingText.scss';
@@ -59,6 +57,7 @@
 @import 'src/buckets/components/Retention.scss';
 @import 'src/buckets/components/BucketAddDataButton.scss';
 @import 'src/buckets/components/NoBucketsWarning.scss';
+@import 'src/telegrafs/components/Collectors.scss';
 @import 'src/telegrafs/components/TelegrafConfigOverlay.scss';
 @import 'src/variables/components/CreateVariableOverlay.scss';
 @import 'src/authorizations/components/BucketsSelector.scss';
@@ -84,6 +83,7 @@
 @import 'src/pageLayout/components/RenamablePageTitle.scss';
 @import 'src/timeMachine/components/SelectorList.scss';
 @import 'src/timeMachine/components/Queries.scss';
+@import 'src/timeMachine/components/EditorShortcutsTooltip.scss';
 @import 'src/timeMachine/components/SearchBar.scss';
 @import 'src/timeMachine/components/QueriesTimer.scss';
 @import 'src/timeMachine/components/QueriesSwitcher.scss';
@@ -110,7 +110,8 @@
 @import 'src/onboarding/components/SigninForm.scss';
 @import 'src/shared/components/ThresholdsSettings.scss';
 @import 'src/shared/components/ThresholdMarkers.scss';
-@import 'src/members/components/AddMembersForm.scss';
+@import 'src/shared/components/EventMarkers.scss';
+@import 'src/shared/components/EventMarkerTooltip.scss';
 @import 'src/shared/components/DeleteDataForm/DeleteDataForm.scss';
 @import 'src/shared/components/cloud/CloudOnly.scss';
 @import 'src/alerting/components/notifications/NewRuleOverlay.scss';

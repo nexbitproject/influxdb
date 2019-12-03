@@ -148,7 +148,7 @@ class Labels extends PureComponent<Props, State> {
     this.props.updateLabel(label.id, label as ILabel)
   }
 
-  private handleDelete = async (id: string) => {
+  private handleDelete = (id: string) => {
     this.props.deleteLabel(id)
   }
 
@@ -164,17 +164,16 @@ class Labels extends PureComponent<Props, State> {
     if (searchTerm) {
       return (
         <EmptyState size={ComponentSize.Medium}>
-          <EmptyState.Text text="No Labels match your search term" />
+          <EmptyState.Text>No Labels match your search term</EmptyState.Text>
         </EmptyState>
       )
     }
 
     return (
       <EmptyState size={ComponentSize.Medium}>
-        <EmptyState.Text
-          text="Looks like you haven't created any Labels , why not create one?"
-          highlightWords={['Labels']}
-        />
+        <EmptyState.Text>
+          Looks like you haven't created any <b>Labels</b>, why not create one?
+        </EmptyState.Text>
         <Button
           text="Create Label"
           color={ComponentColor.Primary}

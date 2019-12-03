@@ -37,13 +37,13 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
     <>
       <Page titleTag={pageTitleSuffixer(['Monitoring & Alerting'])}>
         <Page.Header fullWidth={false}>
-          <Page.Header.Left>
+          <Page.HeaderLeft>
             <PageTitleWithOrg title="Monitoring & Alerting" />
-          </Page.Header.Left>
-          <Page.Header.Right />
+          </Page.HeaderLeft>
+          <Page.HeaderRight />
         </Page.Header>
         <Page.Contents fullWidth={false} scrollable={false}>
-          <GetResources resource={ResourceType.Labels}>
+          <GetResources resources={[ResourceType.Labels]}>
             <GetAssetLimits>
               <AssetLimitAlert
                 resourceName={limitedResources}
@@ -53,17 +53,19 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
               <Grid className="alerting-index">
                 <GridRow testID="grid--row">
                   <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                    <GetResources resource={ResourceType.Checks}>
+                    <GetResources resources={[ResourceType.Checks]}>
                       <ChecksColumn />
                     </GetResources>
                   </GridColumn>
                   <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                    <GetResources resource={ResourceType.NotificationEndpoints}>
+                    <GetResources
+                      resources={[ResourceType.NotificationEndpoints]}
+                    >
                       <EndpointsColumn />
                     </GetResources>
                   </GridColumn>
                   <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                    <GetResources resource={ResourceType.NotificationRules}>
+                    <GetResources resources={[ResourceType.NotificationRules]}>
                       <RulesColumn />
                     </GetResources>
                   </GridColumn>

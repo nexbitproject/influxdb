@@ -34,7 +34,7 @@ func NewCheckService(cs influxdb.CheckService, ts influxdb.TaskService, coordina
 }
 
 // CreateCheck Creates a check and Publishes the change it can be scheduled.
-func (cs *CoordinatingCheckService) CreateCheck(ctx context.Context, c influxdb.Check, userID influxdb.ID) error {
+func (cs *CoordinatingCheckService) CreateCheck(ctx context.Context, c influxdb.CheckCreate, userID influxdb.ID) error {
 
 	if err := cs.CheckService.CreateCheck(ctx, c, userID); err != nil {
 		return err
@@ -57,7 +57,7 @@ func (cs *CoordinatingCheckService) CreateCheck(ctx context.Context, c influxdb.
 }
 
 // UpdateCheck Updates a check and publishes the change so the task owner can act on the update
-func (cs *CoordinatingCheckService) UpdateCheck(ctx context.Context, id influxdb.ID, c influxdb.Check) (influxdb.Check, error) {
+func (cs *CoordinatingCheckService) UpdateCheck(ctx context.Context, id influxdb.ID, c influxdb.CheckCreate) (influxdb.Check, error) {
 	from, err := cs.CheckService.FindCheckByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -81,7 +81,7 @@ func (cs *CoordinatingCheckService) UpdateCheck(ctx context.Context, id influxdb
 	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
 	// this allows us to see not run the task for inactive time
 	if fromTask.Status == string(backend.TaskInactive) && toTask.Status == string(backend.TaskActive) {
-		toTask.LatestCompleted = cs.Now().Format(time.RFC3339)
+		toTask.LatestCompleted = cs.Now()
 	}
 
 	return to, cs.coordinator.TaskUpdated(ctx, fromTask, toTask)
@@ -112,7 +112,7 @@ func (cs *CoordinatingCheckService) PatchCheck(ctx context.Context, id influxdb.
 	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
 	// this allows us to see not run the task for inactive time
 	if fromTask.Status == string(backend.TaskInactive) && toTask.Status == string(backend.TaskActive) {
-		toTask.LatestCompleted = cs.Now().Format(time.RFC3339)
+		toTask.LatestCompleted = cs.Now()
 	}
 
 	return to, cs.coordinator.TaskUpdated(ctx, fromTask, toTask)
