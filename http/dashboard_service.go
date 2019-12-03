@@ -376,7 +376,7 @@ func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	h.log.Debug("dashboards retrieved", zap.String("dashboards", fmt.Sprint(dashboards)))
+	h.log.Debug("Dashboards retrieved", zap.String("dashboards", fmt.Sprint(dashboards)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newGetDashboardsResponse(ctx, dashboards, req.filter, req.opts, h.LabelService)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -524,7 +524,7 @@ func (h *DashboardHandler) handleGetDashboard(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	h.log.Debug("dashboard retrieved", zap.String("dashboard", fmt.Sprint(dashboard)))
+	h.log.Debug("Dashboard retrieved", zap.String("dashboard", fmt.Sprint(dashboard)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardResponse(dashboard, labels)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -571,7 +571,7 @@ func (h *DashboardHandler) handleGetDashboardLog(w http.ResponseWriter, r *http.
 		return
 	}
 
-	h.log.Debug("dashboard log retrieved", zap.String("log", fmt.Sprint(log)))
+	h.log.Debug("Dashboard log retrieved", zap.String("log", fmt.Sprint(log)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardLogResponse(req.DashboardID, log)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -624,7 +624,7 @@ func (h *DashboardHandler) handleDeleteDashboard(w http.ResponseWriter, r *http.
 		return
 	}
 
-	h.log.Debug("dashboard deleted", zap.String("dashboardID", req.DashboardID.String()))
+	h.log.Debug("Dashboard deleted", zap.String("dashboardID", req.DashboardID.String()))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -673,7 +673,7 @@ func (h *DashboardHandler) handlePatchDashboard(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	h.log.Debug("dashboard updated", zap.String("dashboard", fmt.Sprint(dashboard)))
+	h.log.Debug("Dashboard updated", zap.String("dashboard", fmt.Sprint(dashboard)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardResponse(dashboard, labels)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -811,7 +811,7 @@ func (h *DashboardHandler) handlePostDashboardCell(w http.ResponseWriter, r *htt
 		return
 	}
 
-	h.log.Debug("dashboard cell created", zap.String("dashboardID", req.dashboardID.String()), zap.String("cell", fmt.Sprint(cell)))
+	h.log.Debug("Dashboard cell created", zap.String("dashboardID", req.dashboardID.String()), zap.String("cell", fmt.Sprint(cell)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newDashboardCellResponse(req.dashboardID, cell)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -861,7 +861,7 @@ func (h *DashboardHandler) handlePutDashboardCells(w http.ResponseWriter, r *htt
 		return
 	}
 
-	h.log.Debug("dashboard cell replaced", zap.String("dashboardID", req.dashboardID.String()), zap.String("cells", fmt.Sprint(req.cells)))
+	h.log.Debug("Dashboard cell replaced", zap.String("dashboardID", req.dashboardID.String()), zap.String("cells", fmt.Sprint(req.cells)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newDashboardCellsResponse(req.dashboardID, req.cells)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -945,7 +945,7 @@ func (h *DashboardHandler) handleGetDashboardCellView(w http.ResponseWriter, r *
 		return
 	}
 
-	h.log.Debug("dashboard cell view retrieved", zap.String("dashboardID", req.dashboardID.String()), zap.String("cellID", req.cellID.String()), zap.String("view", fmt.Sprint(view)))
+	h.log.Debug("Dashboard cell view retrieved", zap.String("dashboardID", req.dashboardID.String()), zap.String("cellID", req.cellID.String()), zap.String("view", fmt.Sprint(view)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardCellViewResponse(req.dashboardID, req.cellID, view)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -999,7 +999,7 @@ func (h *DashboardHandler) handlePatchDashboardCellView(w http.ResponseWriter, r
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("dashboard cell view updated", zap.String("dashboardID", req.dashboardID.String()), zap.String("cellID", req.cellID.String()), zap.String("view", fmt.Sprint(view)))
+	h.log.Debug("Dashboard cell view updated", zap.String("dashboardID", req.dashboardID.String()), zap.String("cellID", req.cellID.String()), zap.String("view", fmt.Sprint(view)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardCellViewResponse(req.dashboardID, req.cellID, view)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -1019,7 +1019,7 @@ func (h *DashboardHandler) handleDeleteDashboardCell(w http.ResponseWriter, r *h
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("dashboard cell deleted", zap.String("dashboardID", req.dashboardID.String()), zap.String("cellID", req.cellID.String()))
+	h.log.Debug("Dashboard cell deleted", zap.String("dashboardID", req.dashboardID.String()), zap.String("cellID", req.cellID.String()))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -1084,7 +1084,7 @@ func (h *DashboardHandler) handlePatchDashboardCell(w http.ResponseWriter, r *ht
 		return
 	}
 
-	h.log.Debug("dashboard cell updated", zap.String("dashboardID", req.dashboardID.String()), zap.String("cell", fmt.Sprint(cell)))
+	h.log.Debug("Dashboard cell updated", zap.String("dashboardID", req.dashboardID.String()), zap.String("cell", fmt.Sprint(cell)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardCellResponse(req.dashboardID, cell)); err != nil {
 		logEncodingError(h.log, r, err)

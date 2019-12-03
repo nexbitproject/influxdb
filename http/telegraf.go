@@ -238,7 +238,7 @@ func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	filter, err := decodeTelegrafConfigFilter(ctx, r)
 	if err != nil {
-		h.log.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -247,7 +247,7 @@ func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Requ
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("telegrafs retrieved", zap.String("telegrafs", fmt.Sprint(tcs)))
+	h.log.Debug("Telegrafs retrieved", zap.String("telegrafs", fmt.Sprint(tcs)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponses(ctx, tcs, h.LabelService)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -267,7 +267,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("telegraf retrieved", zap.String("telegraf", fmt.Sprint(tc)))
+	h.log.Debug("Telegraf retrieved", zap.String("telegraf", fmt.Sprint(tc)))
 
 	offers := []string{"application/toml", "application/json", "application/octet-stream"}
 	defaultOffer := "application/toml"
@@ -352,7 +352,7 @@ func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	tc, err := decodePostTelegrafRequest(ctx, r)
 	if err != nil {
-		h.log.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -366,7 +366,7 @@ func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Requ
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("telegraf created", zap.String("telegraf", fmt.Sprint(tc)))
+	h.log.Debug("Telegraf created", zap.String("telegraf", fmt.Sprint(tc)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newTelegrafResponse(tc, []*platform.Label{})); err != nil {
 		logEncodingError(h.log, r, err)
@@ -379,7 +379,7 @@ func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	tc, err := decodePutTelegrafRequest(ctx, r)
 	if err != nil {
-		h.log.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -400,7 +400,7 @@ func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Reque
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("telegraf updated", zap.String("telegraf", fmt.Sprint(tc)))
+	h.log.Debug("Telegraf updated", zap.String("telegraf", fmt.Sprint(tc)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponse(tc, labels)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -420,7 +420,7 @@ func (h *TelegrafHandler) handleDeleteTelegraf(w http.ResponseWriter, r *http.Re
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("telegraf deleted", zap.String("telegrafID", fmt.Sprint(i)))
+	h.log.Debug("Telegraf deleted", zap.String("telegrafID", fmt.Sprint(i)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
