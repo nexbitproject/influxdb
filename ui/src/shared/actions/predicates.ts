@@ -18,7 +18,7 @@ import {
 } from 'src/shared/copy/notifications'
 
 // Types
-import {RemoteDataState, Filter, TimeRange, GetState} from 'src/types'
+import {RemoteDataState, Filter, CustomTimeRange, GetState} from 'src/types'
 import moment from 'moment'
 
 export type Action =
@@ -116,10 +116,10 @@ const setKeys = (keys: string[]): SetKeysByBucket => ({
 
 interface SetTimeRange {
   type: 'SET_DELETE_TIME_RANGE'
-  payload: {timeRange: TimeRange}
+  payload: {timeRange: CustomTimeRange}
 }
 
-export const setTimeRange = (timeRange: TimeRange): SetTimeRange => ({
+export const setTimeRange = (timeRange: CustomTimeRange): SetTimeRange => ({
   type: 'SET_DELETE_TIME_RANGE',
   payload: {timeRange},
 })
@@ -182,9 +182,16 @@ export const deleteWithPredicate = () => async (
   }
 }
 
-export const setBucketAndKeys = (orgID: string, bucketName: string) => async (
-  dispatch: Dispatch<Action>
+export const setBucketAndKeys = (bucketName: string) => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
 ) => {
+  const {
+    orgs: {
+      org: {id: orgID},
+    },
+  } = getState()
+
   try {
     const query = `import "influxdata/influxdb/v1"
     v1.tagKeys(bucket: "${bucketName}")
@@ -198,11 +205,16 @@ export const setBucketAndKeys = (orgID: string, bucketName: string) => async (
   }
 }
 
-export const setValuesByKey = (
-  orgID: string,
-  bucketName: string,
-  keyName: string
-) => async (dispatch: Dispatch<Action>) => {
+export const setValuesByKey = (bucketName: string, keyName: string) => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
+  const {
+    orgs: {
+      org: {id: orgID},
+    },
+  } = getState()
+
   try {
     const query = `import "influxdata/influxdb/v1" v1.tagValues(bucket: "${bucketName}", tag: "${keyName}")`
     const values = await extractBoxedCol(runQuery(orgID, query), '_value')
