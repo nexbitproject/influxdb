@@ -1,14 +1,8 @@
-// Libraries
-import moment from 'moment'
-
 // Actions
 import {Action} from 'src/shared/actions/predicates'
 
 // Types
 import {PredicatesState, RemoteDataState} from 'src/types'
-
-export const recently = Date.parse(moment().format('YYYY-MM-DD HH:00:00'))
-export const HOUR_MS = 1000 * 60 * 60
 
 export const initialState: PredicatesState = {
   bucketName: '',
@@ -16,7 +10,7 @@ export const initialState: PredicatesState = {
   filters: [],
   isSerious: false,
   keys: [],
-  timeRange: [recently - HOUR_MS, recently],
+  timeRange: null,
   values: [],
 }
 
@@ -65,15 +59,7 @@ export const predicatesReducer = (
       return {...state, values: action.payload.values}
 
     case 'SET_PREDICATE_DEFAULT':
-      return {
-        bucketName: '',
-        deletionStatus: RemoteDataState.NotStarted,
-        filters: [],
-        isSerious: false,
-        keys: [],
-        timeRange: [recently - HOUR_MS, recently],
-        values: [],
-      }
+      return initialState
 
     default:
       return state
